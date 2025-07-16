@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Dashboard Veille</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 30px; }
+    input { padding: 5px; width: 300px; }
+    button { padding: 6px 12px; }
+    .error { color: red; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <h1>Veille automatique</h1>
+  {% if not session.credentials %}
+    <a href="/auth">Connecter mon compte Google</a>
+  {% endif %}
+
+  <form method="get" action="/veille">
+    <input type="text" name="q" placeholder="Sujet" />
+    <button type="submit">Lancer la veille</button>
+  </form>
+
+  {% if error %}
+    <p class="error">{{ error }}</p>
+  {% endif %}
+
+  {% if articles %}
+    <h2>Résultats</h2>
+    <ul>
+      {% for a in articles %}
+        <li>
+          <strong>{{ a.titre }}</strong><br>
+          <em>{{ a.date }} — {{ a.source }}</em><br>
+          <a href="{{ a.url }}" target="_blank">{{ a.url }}</a><br>
+          <p>{{ a.resume }}</p>
+        </li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+</body>
+</html>

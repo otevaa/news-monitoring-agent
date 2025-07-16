@@ -1,0 +1,11 @@
+# Python
+__pycache__/
+venv/
+
+
+# Credentials
+client_secret.json
+google-credentials.json
+
+# OS
+.DS_Store
