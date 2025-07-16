@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% if campaign %}Modifier{% else %}Créer{% endif %} une Campagne - NewsMonitor Pro</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://unpkg.com/feather-icons"></script>
+</head>
+<body>
+    <header class="header">
+        <div class="container">
+            <div class="header-content">
+                <a href="/" class="logo">
+                    <div class="logo-icon">
+                        <i data-feather="trending-up"></i>
+                    </div>
+                    NewsMonitor Pro
+                </a>
+                
+                <nav class="nav">
+                    <a href="/" class="nav-link">Dashboard</a>
+                    <a href="/campaigns" class="nav-link active">Campagnes</a>
+                    <a href="/integrations" class="nav-link">Intégrations</a>
+                    <a href="/analytics" class="nav-link">Analytics</a>
+                </nav>
+                
+                <div class="user-menu">
+                    <a href="/profile" class="btn btn-secondary btn-sm">
+                        <i data-feather="user"></i>
+                        Profil
+                    </a>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="main">
+        <div class="container" style="max-width: 800px;">
+            <div style="margin-bottom: 2rem;">
+                <a href="/campaigns" class="btn btn-secondary">
+                    <i data-feather="arrow-left"></i>
+                    Retour aux campagnes
+                </a>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h1 class="card-title" style="font-size: 1.75rem;">
+                        {% if campaign %}
+                            Modifier la campagne "{{ campaign.name }}"
+                        {% else %}
+                            Créer une nouvelle campagne
+                        {% endif %}
+                    </h1>
+                    <p class="card-subtitle">
+                        {% if campaign %}
+                            Modifiez les paramètres de votre campagne de veille
+                        {% else %}
+                            Configurez votre nouvelle campagne de surveillance d'actualités
+                        {% endif %}
+                    </p>
+                </div>
+
+                <form method="POST" style="margin-top: 2rem;">
+                    <div class="form-group">
+                        <label class="form-label" for="name">
+                            <i data-feather="bookmark"></i>
+                            Nom de la campagne
+                        </label>
+                        <input 
+                            type="text" 
+                            id="name" 
+                            name="name" 
+                            class="form-input" 
+                            placeholder="Ex: Veille Intelligence Artificielle"
+                            value="{{ campaign.name if campaign else request.args.get('name', '') }}"
+                            required
+                        />
+                        <small style="color: var(--neutral-500); font-size: 0.875rem;">
+                            Donnez un nom descriptif à votre campagne
+                        </small>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="keywords">
+                            <i data-feather="search"></i>
+                            Mots-clés à surveiller
+                        </label>
+                        <input 
+                            type="text" 
+                            id="keywords" 
+                            name="keywords" 
+                            class="form-input" 
+                            placeholder="intelligence artificielle, IA, machine learning"
+                            value="{{ campaign.keywords if campaign else request.args.get('keywords', '') }}"
+                            required
+                        />
+                        <small style="color: var(--neutral-500); font-size: 0.875rem;">
+                            Séparez les mots-clés par des virgules. Plus vous en ajoutez, plus les résultats seront larges.
+                        </small>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="frequency">
+                            <i data-feather="clock"></i>
+                            Fréquence de surveillance
+                        </label>
+                        <select id="frequency" name="frequency" class="form-select" required>
+                            <option value="">Choisir une fréquence</option>
+                            <option value="15min" {% if campaign and campaign.frequency == '15min' %}selected{% endif %}>
+                                Toutes les 15 minutes
+                            </option>
+                            <option value="hourly" {% if campaign and campaign.frequency == 'hourly' %}selected{% endif %}>
+                                Toutes les heures
+                            </option>
+                            <option value="daily" {% if campaign and campaign.frequency == 'daily' %}selected{% endif %}>
+                                Quotidienne (recommandé)
+                            </option>
+                            <option value="weekly" {% if campaign and campaign.frequency == 'weekly' %}selected{% endif %}>
+                                Hebdomadaire
+                            </option>
+                        </select>
+                        <small style="color: var(--neutral-500); font-size: 0.875rem;">
+                            Plus la fréquence est élevée, plus vous recevrez d'articles rapidement
+                        </small>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">
+                            <i data-feather="database"></i>
+                            Destination des résultats
+                        </label>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+                            <label class="integration-card" style="cursor: pointer;">
+                                <input 
+                                    type="checkbox" 
+                                    name="integrations" 
+                                    value="google_sheets" 
+                                    style="display: none;"
+                                    {% if campaign and 'google_sheets' in campaign.integrations %}checked{% endif %}
+                                />
+                                <div class="integration-icon" style="background: #4285f4; color: white;">
+                                    <i data-feather="file-text"></i>
+                                </div>
+                                <h4>Google Sheets</h4>
+                                <p style="font-size: 0.875rem; color: var(--neutral-500);">
+                                    Sauvegarde automatique dans une feuille de calcul
+                                </p>
+                            </label>
+                            
+                            <label class="integration-card" style="cursor: pointer;">
+                                <input 
+                                    type="checkbox" 
+                                    name="integrations" 
+                                    value="airtable" 
+                                    style="display: none;"
+                                    {% if campaign and 'airtable' in campaign.integrations %}checked{% endif %}
+                                />
+                                <div class="integration-icon" style="background: #ff6900; color: white;">
+                                    <i data-feather="database"></i>
+                                </div>
+                                <h4>Airtable</h4>
+                                <p style="font-size: 0.875rem; color: var(--neutral-500);">
+                                    Base de données organisée et collaborative
+                                </p>
+                            </label>
+                        </div>
+                        <small style="color: var(--neutral-500); font-size: 0.875rem;">
+                            Sélectionnez où vous souhaitez envoyer automatiquement les articles trouvés
+                        </small>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="max_articles">
+                            <i data-feather="filter"></i>
+                            Nombre maximum d'articles par recherche
+                        </label>
+                        <select id="max_articles" name="max_articles" class="form-select">
+                            <option value="10" {% if campaign and campaign.max_articles == 10 %}selected{% endif %}>10 articles</option>
+                            <option value="25" {% if campaign and campaign.max_articles == 25 or not campaign %}selected{% endif %}>25 articles (recommandé)</option>
+                            <option value="50" {% if campaign and campaign.max_articles == 50 %}selected{% endif %}>50 articles</option>
+                            <option value="100" {% if campaign and campaign.max_articles == 100 %}selected{% endif %}>100 articles</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="description">
+                            <i data-feather="file-text"></i>
+                            Description (optionnel)
+                        </label>
+                        <textarea 
+                            id="description" 
+                            name="description" 
+                            class="form-textarea" 
+                            placeholder="Décrivez l'objectif de cette campagne..."
+                        >{{ campaign.description if campaign else '' }}</textarea>
+                    </div>
+
+                    <div style="display: flex; gap: 1rem; justify-content: flex-end; margin-top: 2rem; padding-top: 2rem; border-top: 1px solid var(--neutral-200);">
+                        <a href="/campaigns" class="btn btn-secondary">
+                            <i data-feather="x"></i>
+                            Annuler
+                        </a>
+                        
+                        {% if campaign %}
+                            <button type="submit" class="btn btn-primary">
+                                <i data-feather="save"></i>
+                                Mettre à jour la campagne
+                            </button>
+                        {% else %}
+                            <button type="submit" class="btn btn-primary">
+                                <i data-feather="plus"></i>
+                                Créer la campagne
+                            </button>
+                        {% endif %}
+                    </div>
+                </form>
+            </div>
+
+            <!-- Preview Section -->
+            {% if not campaign %}
+            <div class="card" style="margin-top: 2rem;">
+                <div class="card-header">
+                    <h3 class="card-title">Aperçu en temps réel</h3>
+                    <p class="card-subtitle">Testez vos mots-clés avant de créer la campagne</p>
+                </div>
+                
+                <div id="preview-section" style="display: none;">
+                    <button id="preview-btn" class="btn btn-secondary" onclick="previewResults()">
+                        <i data-feather="eye"></i>
+                        Aperçu des résultats
+                    </button>
+                    <div id="preview-results" style="margin-top: 1rem;"></div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </main>
+
+    <script>
+        feather.replace();
+
+        // Integration selection
+        document.querySelectorAll('.integration-card').forEach(card => {
+            const checkbox = card.querySelector('input[type="checkbox"]');
+            
+            card.addEventListener('click', () => {
+                checkbox.checked = !checkbox.checked;
+                card.classList.toggle('active', checkbox.checked);
+            });
+            
+            // Set initial state
+            card.classList.toggle('active', checkbox.checked);
+        });
+
+        // Keywords input validation and preview
+        const keywordsInput = document.getElementById('keywords');
+        const previewSection = document.getElementById('preview-section');
+        
+        keywordsInput.addEventListener('input', () => {
+            if (keywordsInput.value.trim()) {
+                previewSection.style.display = 'block';
+            } else {
+                previewSection.style.display = 'none';
+            }
+        });
+
+        function previewResults() {
+            const keywords = keywordsInput.value.trim();
+            if (!keywords) return;
+            
+            const previewBtn = document.getElementById('preview-btn');
+            const previewResults = document.getElementById('preview-results');
+            
+            previewBtn.innerHTML = '<div class="loading"></div> Chargement...';
+            previewBtn.disabled = true;
+            
+            fetch('/api/preview', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ keywords: keywords })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.articles && data.articles.length > 0) {
+                    previewResults.innerHTML = `
+                        <div style="margin-bottom: 1rem;">
+                            <strong>${data.articles.length} articles trouvés</strong>
+                        </div>
+                        ${data.articles.slice(0, 3).map(article => `
+                            <div style="padding: 1rem; border: 1px solid var(--neutral-200); border-radius: var(--radius-md); margin-bottom: 0.5rem;">
+                                <h4 style="margin-bottom: 0.5rem;">${article.titre}</h4>
+                                <p style="font-size: 0.875rem; color: var(--neutral-600);">${article.resume}</p>
+                            </div>
+                        `).join('')}
+                        ${data.articles.length > 3 ? `<p style="text-align: center; color: var(--neutral-500);">... et ${data.articles.length - 3} autres articles</p>` : ''}
+                    `;
+                } else {
+                    previewResults.innerHTML = '<p style="color: var(--neutral-500);">Aucun article trouvé pour ces mots-clés</p>';
+                }
+            })
+            .catch(error => {
+                previewResults.innerHTML = '<p style="color: var(--error);">Erreur lors du chargement de l\'aperçu</p>';
+            })
+            .finally(() => {
+                previewBtn.innerHTML = '<i data-feather="eye"></i> Aperçu des résultats';
+                previewBtn.disabled = false;
+                feather.replace();
+            });
+        }
+
+        // Form validation
+        document.querySelector('form').addEventListener('submit', (e) => {
+            const integrations = document.querySelectorAll('input[name="integrations"]:checked');
+            if (integrations.length === 0) {
+                e.preventDefault();
+                alert('Veuillez sélectionner au moins une intégration pour sauvegarder les résultats.');
+            }
+        });
+    </script>
+</body>
+</html>

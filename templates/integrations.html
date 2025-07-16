@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Intégrations - NewsMonitor Pro</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://unpkg.com/feather-icons"></script>
+</head>
+<body>
+    <header class="header">
+        <div class="container">
+            <div class="header-content">
+                <a href="/" class="logo">
+                    <div class="logo-icon">
+                        <i data-feather="trending-up"></i>
+                    </div>
+                    NewsMonitor Pro
+                </a>
+                
+                <nav class="nav">
+                    <a href="/" class="nav-link">Dashboard</a>
+                    <a href="/campaigns" class="nav-link">Campagnes</a>
+                    <a href="/integrations" class="nav-link active">Intégrations</a>
+                    <a href="/analytics" class="nav-link">Analytics</a>
+                </nav>
+                
+                <div class="user-menu">
+                    <a href="/profile" class="btn btn-secondary btn-sm">
+                        <i data-feather="user"></i>
+                        Profil
+                    </a>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="main">
+        <div class="container">
+            <div style="margin-bottom: 2rem;">
+                <h1 style="font-size: 2rem; font-weight: 700; color: var(--neutral-800); margin-bottom: 0.5rem;">
+                    Intégrations
+                </h1>
+                <p style="color: var(--neutral-600);">
+                    Connectez vos outils préférés pour recevoir automatiquement les articles de vos campagnes
+                </p>
+            </div>
+
+            <!-- Integration Cards -->
+            <div class="dashboard-grid">
+                <!-- Google Sheets -->
+                <div class="card">
+                    <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem;">
+                        <div class="integration-icon" style="background: #4285f4; color: white; width: 56px; height: 56px; font-size: 1.5rem;">
+                            <i data-feather="file-text"></i>
+                        </div>
+                        <div>
+                            <h3 style="font-size: 1.25rem; font-weight: 600; margin-bottom: 0.25rem;">Google Sheets</h3>
+                            <div class="status-badge {% if integrations.google_sheets %}status-active{% else %}status-stopped{% endif %}">
+                                {% if integrations.google_sheets %}Connecté{% else %}Non configuré{% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <p style="color: var(--neutral-600); margin-bottom: 1.5rem;">
+                        Sauvegardez automatiquement tous les articles trouvés dans une feuille Google Sheets organisée.
+                        Idéal pour l'analyse et le partage en équipe.
+                    </p>
+                    
+                    {% if integrations.google_sheets %}
+                        <div style="background: var(--neutral-50); padding: 1rem; border-radius: var(--radius-md); margin-bottom: 1rem;">
+                            <h4 style="font-weight: 600; margin-bottom: 0.5rem;">Configuration actuelle:</h4>
+                            <p style="font-size: 0.875rem; color: var(--neutral-600);">
+                                <i data-feather="file"></i> Feuille: {{ integrations.google_sheets.spreadsheet_name }}
+                            </p>
+                            <p style="font-size: 0.875rem; color: var(--neutral-600);">
+                                <i data-feather="calendar"></i> Connecté le: {{ integrations.google_sheets.connected_at[:10] }}
+                            </p>
+                        </div>
+                        
+                        <div style="display: flex; gap: 0.5rem;">
+                            <a href="{{ integrations.google_sheets.spreadsheet_url }}" target="_blank" class="btn btn-secondary btn-sm">
+                                <i data-feather="external-link"></i>
+                                Ouvrir la feuille
+                            </a>
+                            <button class="btn btn-warning btn-sm" onclick="disconnectIntegration('google_sheets')">
+                                <i data-feather="unlink"></i>
+                                Déconnecter
+                            </button>
+                        </div>
+                    {% else %}
+                        <div style="display: flex; gap: 0.5rem;">
+                            <a href="/auth/google" class="btn btn-primary">
+                                <i data-feather="link"></i>
+                                Connecter Google Sheets
+                            </a>
+                            <button class="btn btn-secondary btn-sm" onclick="showSetupInstructions('google_sheets')">
+                                <i data-feather="help-circle"></i>
+                                Instructions
+                            </button>
+                        </div>
+                    {% endif %}
+                </div>
+
+                <!-- Airtable -->
+                <div class="card">
+                    <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem;">
+                        <div class="integration-icon" style="background: #ff6900; color: white; width: 56px; height: 56px; font-size: 1.5rem;">
+                            <i data-feather="database"></i>
+                        </div>
+                        <div>
+                            <h3 style="font-size: 1.25rem; font-weight: 600; margin-bottom: 0.25rem;">Airtable</h3>
+                            <div class="status-badge {% if integrations.airtable %}status-active{% else %}status-stopped{% endif %}">
+                                {% if integrations.airtable %}Connecté{% else %}Non configuré{% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <p style="color: var(--neutral-600); margin-bottom: 1.5rem;">
+                        Organisez vos articles dans une base Airtable avec des vues personnalisées, des filtres avancés
+                        et des fonctionnalités collaboratives.
+                    </p>
+                    
+                    {% if integrations.airtable %}
+                        <div style="background: var(--neutral-50); padding: 1rem; border-radius: var(--radius-md); margin-bottom: 1rem;">
+                            <h4 style="font-weight: 600; margin-bottom: 0.5rem;">Configuration actuelle:</h4>
+                            <p style="font-size: 0.875rem; color: var(--neutral-600);">
+                                <i data-feather="database"></i> Base: {{ integrations.airtable.base_name }}
+                            </p>
+                            <p style="font-size: 0.875rem; color: var(--neutral-600);">
+                                <i data-feather="table"></i> Table: {{ integrations.airtable.table_name }}
+                            </p>
+                        </div>
+                        
+                        <div style="display: flex; gap: 0.5rem;">
+                            <a href="{{ integrations.airtable.base_url }}" target="_blank" class="btn btn-secondary btn-sm">
+                                <i data-feather="external-link"></i>
+                                Ouvrir la base
+                            </a>
+                            <button class="btn btn-secondary btn-sm" onclick="configureAirtable()">
+                                <i data-feather="settings"></i>
+                                Reconfigurer
+                            </button>
+                            <button class="btn btn-warning btn-sm" onclick="disconnectIntegration('airtable')">
+                                <i data-feather="unlink"></i>
+                                Déconnecter
+                            </button>
+                        </div>
+                    {% else %}
+                        <div style="display: flex; gap: 0.5rem;">
+                            <button class="btn btn-primary" onclick="configureAirtable()">
+                                <i data-feather="link"></i>
+                                Configurer Airtable
+                            </button>
+                            <button class="btn btn-secondary btn-sm" onclick="showSetupInstructions('airtable')">
+                                <i data-feather="help-circle"></i>
+                                Instructions
+                            </button>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Usage Statistics -->
+            {% if integrations.google_sheets or integrations.airtable %}
+            <div class="card" style="margin-top: 2rem;">
+                <div class="card-header">
+                    <h3 class="card-title">Statistiques d'utilisation</h3>
+                    <p class="card-subtitle">Aperçu de l'activité de vos intégrations</p>
+                </div>
+                
+                <div class="dashboard-grid">
+                    <div class="stat-card">
+                        <span class="stat-number">{{ stats.total_articles_sent or 0 }}</span>
+                        <span class="stat-label">Articles envoyés</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-number">{{ stats.articles_today or 0 }}</span>
+                        <span class="stat-label">Aujourd'hui</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-number">{{ stats.successful_syncs or 0 }}</span>
+                        <span class="stat-label">Syncs réussies</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-number">{{ stats.last_sync or 'Jamais' }}</span>
+                        <span class="stat-label">Dernière sync</span>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </main>
+
+    <!-- Configuration Modals -->
+    
+    <!-- Airtable Configuration Modal -->
+    <div id="airtable-modal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;">
+        <div class="card" style="max-width: 500px; width: 90%; max-height: 90%; overflow-y: auto;">
+            <div class="card-header">
+                <h3 class="card-title">Configuration Airtable</h3>
+                <button onclick="closeModal('airtable-modal')" style="background: none; border: none; font-size: 1.5rem; cursor: pointer;">&times;</button>
+            </div>
+            
+            <form id="airtable-form" method="POST" action="/integrations/airtable/configure">
+                <div class="form-group">
+                    <label class="form-label" for="airtable_api_key">Clé API Airtable</label>
+                    <input type="password" id="airtable_api_key" name="api_key" class="form-input" required />
+                    <small style="color: var(--neutral-500);">
+                        Trouvez votre clé API dans votre 
+                        <a href="https://airtable.com/account" target="_blank">compte Airtable</a>
+                    </small>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label" for="airtable_base_id">ID de la Base</label>
+                    <input type="text" id="airtable_base_id" name="base_id" class="form-input" required />
+                    <small style="color: var(--neutral-500);">
+                        ID de votre base Airtable (commence par "app...")
+                    </small>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label" for="airtable_table_name">Nom de la Table</label>
+                    <input type="text" id="airtable_table_name" name="table_name" class="form-input" value="Articles" required />
+                </div>
+                
+                <div style="display: flex; gap: 1rem; justify-content: flex-end;">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('airtable-modal')">
+                        Annuler
+                    </button>
+                    <button type="submit" class="btn btn-primary">
+                        <i data-feather="save"></i>
+                        Configurer
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Instructions Modal -->
+    <div id="instructions-modal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;">
+        <div class="card" style="max-width: 600px; width: 90%; max-height: 90%; overflow-y: auto;">
+            <div class="card-header">
+                <h3 class="card-title" id="instructions-title">Instructions de configuration</h3>
+                <button onclick="closeModal('instructions-modal')" style="background: none; border: none; font-size: 1.5rem; cursor: pointer;">&times;</button>
+            </div>
+            
+            <div id="instructions-content">
+                <!-- Content will be populated by JavaScript -->
+            </div>
+            
+            <div style="display: flex; justify-content: flex-end; margin-top: 1rem;">
+                <button class="btn btn-secondary" onclick="closeModal('instructions-modal')">
+                    Fermer
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        feather.replace();
+
+        function configureAirtable() {
+            document.getElementById('airtable-modal').style.display = 'flex';
+        }
+
+        function disconnectIntegration(integration) {
+            if (confirm(`Êtes-vous sûr de vouloir déconnecter ${integration === 'google_sheets' ? 'Google Sheets' : 'Airtable'} ?`)) {
+                fetch(`/integrations/${integration}/disconnect`, { method: 'POST' })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            location.reload();
+                        } else {
+                            alert('Erreur lors de la déconnexion');
+                        }
+                    });
+            }
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).style.display = 'none';
+        }
+
+        function showSetupInstructions(integration) {
+            const modal = document.getElementById('instructions-modal');
+            const title = document.getElementById('instructions-title');
+            const content = document.getElementById('instructions-content');
+            
+            if (integration === 'google_sheets') {
+                title.textContent = 'Configuration Google Sheets';
+                content.innerHTML = `
+                    <div style="line-height: 1.6;">
+                        <h4 style="margin-bottom: 1rem;">Étapes de configuration :</h4>
+                        <ol style="margin-left: 1.5rem; margin-bottom: 1rem;">
+                            <li>Cliquez sur "Connecter Google Sheets"</li>
+                            <li>Autorisez NewsMonitor Pro à accéder à vos Google Sheets</li>
+                            <li>Une nouvelle feuille sera automatiquement créée</li>
+                            <li>Vos articles seront sauvegardés automatiquement</li>
+                        </ol>
+                        
+                        <h4 style="margin-bottom: 1rem;">Structure de la feuille :</h4>
+                        <p style="margin-bottom: 1rem;">Les colonnes suivantes seront créées :</p>
+                        <ul style="margin-left: 1.5rem;">
+                            <li><strong>Date</strong> - Date de publication</li>
+                            <li><strong>Source</strong> - Source de l'article</li>
+                            <li><strong>Titre</strong> - Titre de l'article</li>
+                            <li><strong>URL</strong> - Lien vers l'article</li>
+                            <li><strong>Résumé</strong> - Résumé de l'article</li>
+                            <li><strong>Campagne</strong> - Nom de la campagne</li>
+                        </ul>
+                    </div>
+                `;
+            } else if (integration === 'airtable') {
+                title.textContent = 'Configuration Airtable';
+                content.innerHTML = `
+                    <div style="line-height: 1.6;">
+                        <h4 style="margin-bottom: 1rem;">Pré-requis :</h4>
+                        <ol style="margin-left: 1.5rem; margin-bottom: 1rem;">
+                            <li>Créez un compte <a href="https://airtable.com" target="_blank">Airtable</a> (gratuit)</li>
+                            <li>Créez une nouvelle base ou utilisez une existante</li>
+                            <li>Récupérez votre clé API dans votre profil Airtable</li>
+                        </ol>
+                        
+                        <h4 style="margin-bottom: 1rem;">Comment trouver votre clé API :</h4>
+                        <ol style="margin-left: 1.5rem; margin-bottom: 1rem;">
+                            <li>Allez sur <a href="https://airtable.com/account" target="_blank">airtable.com/account</a></li>
+                            <li>Dans la section "API", cliquez sur "Generate API key"</li>
+                            <li>Copiez la clé générée</li>
+                        </ol>
+                        
+                        <h4 style="margin-bottom: 1rem;">Comment trouver l'ID de votre base :</h4>
+                        <ol style="margin-left: 1.5rem;">
+                            <li>Ouvrez votre base Airtable</li>
+                            <li>Allez sur <a href="https://airtable.com/api" target="_blank">airtable.com/api</a></li>
+                            <li>Sélectionnez votre base</li>
+                            <li>L'ID commence par "app..." et se trouve dans l'URL</li>
+                        </ol>
+                    </div>
+                `;
+            }
+            
+            modal.style.display = 'flex';
+        }
+
+        // Handle form submissions
+        document.getElementById('airtable-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(this);
+            const submitBtn = this.querySelector('button[type="submit"]');
+            const originalText = submitBtn.innerHTML;
+            
+            submitBtn.innerHTML = '<div class="loading"></div> Configuration...';
+            submitBtn.disabled = true;
+            
+            fetch('/integrations/airtable/configure', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    closeModal('airtable-modal');
+                    location.reload();
+                } else {
+                    alert('Erreur: ' + (data.error || 'Configuration échouée'));
+                }
+            })
+            .catch(error => {
+                alert('Erreur de réseau');
+            })
+            .finally(() => {
+                submitBtn.innerHTML = originalText;
+                submitBtn.disabled = false;
+            });
+        });
+
+        // Close modals when clicking outside
+        document.addEventListener('click', function(e) {
+            if (e.target.id === 'airtable-modal' || e.target.id === 'instructions-modal') {
+                closeModal(e.target.id);
+            }
+        });
+    </script>
+</body>
+</html>

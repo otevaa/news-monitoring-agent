@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Profil - NewsMonitor Pro</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://unpkg.com/feather-icons"></script>
+</head>
+<body>
+    <header class="header">
+        <div class="container">
+            <div class="header-content">
+                <a href="/" class="logo">
+                    <div class="logo-icon">
+                        <i data-feather="trending-up"></i>
+                    </div>
+                    NewsMonitor Pro
+                </a>
+                
+                <nav class="nav">
+                    <a href="/" class="nav-link">Dashboard</a>
+                    <a href="/campaigns" class="nav-link">Campagnes</a>
+                    <a href="/integrations" class="nav-link">Intégrations</a>
+                    <a href="/analytics" class="nav-link">Analytics</a>
+                </nav>
+                
+                <div class="user-menu">
+                    <a href="/profile" class="btn btn-secondary btn-sm active">
+                        <i data-feather="user"></i>
+                        Profil
+                    </a>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="main">
+        <div class="container" style="max-width: 800px;">
+            <div style="margin-bottom: 2rem;">
+                <h1 style="font-size: 2rem; font-weight: 700; color: var(--neutral-800); margin-bottom: 0.5rem;">
+                    Mon Profil
+                </h1>
+                <p style="color: var(--neutral-600);">
+                    Gérez vos informations personnelles et vos préférences
+                </p>
+            </div>
+
+            <!-- User Information -->
+            <div class="card" style="margin-bottom: 2rem;">
+                <div class="card-header">
+                    <h3 class="card-title">Informations du compte</h3>
+                </div>
+                
+                <div style="display: flex; align-items: center; gap: 2rem; margin-bottom: 2rem;">
+                    <div style="width: 80px; height: 80px; background: var(--primary-blue); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-size: 2rem; font-weight: 700;">
+                        {{ user.name[0].upper() if user.name else 'U' }}
+                    </div>
+                    <div>
+                        <h3 style="font-size: 1.5rem; font-weight: 600; margin-bottom: 0.5rem;">
+                            {{ user.name or 'Utilisateur' }}
+                        </h3>
+                        <p style="color: var(--neutral-600); margin-bottom: 0.5rem;">
+                            {{ user.email }}
+                        </p>
+                        <div style="display: flex; gap: 1rem; align-items: center;">
+                            <span class="status-badge status-active">Compte actif</span>
+                            <span style="font-size: 0.875rem; color: var(--neutral-500);">
+                                <i data-feather="calendar"></i> Membre depuis le {{ user.created_at[:10] if user.created_at else 'N/A' }}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; padding: 1rem; background: var(--neutral-50); border-radius: var(--radius-lg);">
+                    <div style="text-align: center;">
+                        <div style="font-size: 1.5rem; font-weight: 700; color: var(--primary-blue);">
+                            {{ stats.total_campaigns or 0 }}
+                        </div>
+                        <div style="font-size: 0.75rem; color: var(--neutral-600); text-transform: uppercase;">
+                            Campagnes créées
+                        </div>
+                    </div>
+                    <div style="text-align: center;">
+                        <div style="font-size: 1.5rem; font-weight: 700; color: var(--accent-green);">
+                            {{ stats.total_articles or 0 }}
+                        </div>
+                        <div style="font-size: 0.75rem; color: var(--neutral-600); text-transform: uppercase;">
+                            Articles collectés
+                        </div>
+                    </div>
+                    <div style="text-align: center;">
+                        <div style="font-size: 1.5rem; font-weight: 700; color: var(--accent-orange);">
+                            {{ stats.integrations_count or 0 }}
+                        </div>
+                        <div style="font-size: 0.75rem; color: var(--neutral-600); text-transform: uppercase;">
+                            Intégrations actives
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Account Settings -->
+            <div class="card" style="margin-bottom: 2rem;">
+                <div class="card-header">
+                    <h3 class="card-title">Paramètres du compte</h3>
+                </div>
+                
+                <form method="POST" action="/profile/update">
+                    <div class="form-group">
+                        <label class="form-label" for="display_name">Nom affiché</label>
+                        <input 
+                            type="text" 
+                            id="display_name" 
+                            name="display_name" 
+                            class="form-input" 
+                            value="{{ user.display_name or user.name or '' }}"
+                        />
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label" for="timezone">Fuseau horaire</label>
+                        <select id="timezone" name="timezone" class="form-select">
+                            <option value="Europe/Paris" {% if user.timezone == 'Europe/Paris' or not user.timezone %}selected{% endif %}>
+                                Europe/Paris (GMT+1)
+                            </option>
+                            <option value="Europe/London" {% if user.timezone == 'Europe/London' %}selected{% endif %}>
+                                Europe/London (GMT+0)
+                            </option>
+                            <option value="America/New_York" {% if user.timezone == 'America/New_York' %}selected{% endif %}>
+                                America/New_York (GMT-5)
+                            </option>
+                            <option value="America/Los_Angeles" {% if user.timezone == 'America/Los_Angeles' %}selected{% endif %}>
+                                America/Los_Angeles (GMT-8)
+                            </option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Notifications par email</label>
+                        <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                            <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal;">
+                                <input 
+                                    type="checkbox" 
+                                    name="email_notifications" 
+                                    value="new_articles"
+                                    {% if user.email_notifications and 'new_articles' in user.email_notifications %}checked{% endif %}
+                                />
+                                Nouveaux articles trouvés
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal;">
+                                <input 
+                                    type="checkbox" 
+                                    name="email_notifications" 
+                                    value="campaign_errors"
+                                    {% if user.email_notifications and 'campaign_errors' in user.email_notifications %}checked{% endif %}
+                                />
+                                Erreurs de campagne
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal;">
+                                <input 
+                                    type="checkbox" 
+                                    name="email_notifications" 
+                                    value="weekly_summary"
+                                    {% if user.email_notifications and 'weekly_summary' in user.email_notifications %}checked{% endif %}
+                                />
+                                Résumé hebdomadaire
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div style="display: flex; justify-content: flex-end;">
+                        <button type="submit" class="btn btn-primary">
+                            <i data-feather="save"></i>
+                            Enregistrer les modifications
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- API Access -->
+            <div class="card" style="margin-bottom: 2rem;">
+                <div class="card-header">
+                    <h3 class="card-title">Accès API</h3>
+                    <p class="card-subtitle">Intégrez NewsMonitor Pro dans vos propres applications</p>
+                </div>
+                
+                <div style="margin-bottom: 1rem;">
+                    <label class="form-label">Votre clé API</label>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <input 
+                            type="password" 
+                            id="api-key" 
+                            class="form-input" 
+                            value="{{ user.api_key if user.api_key else 'Aucune clé générée' }}"
+                            readonly
+                            style="flex: 1;"
+                        />
+                        <button class="btn btn-secondary btn-sm" onclick="toggleApiKey()">
+                            <i data-feather="eye" id="toggle-icon"></i>
+                        </button>
+                        <button class="btn btn-secondary btn-sm" onclick="copyApiKey()">
+                            <i data-feather="copy"></i>
+                        </button>
+                    </div>
+                </div>
+                
+                <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem;">
+                    {% if user.api_key %}
+                        <button class="btn btn-warning btn-sm" onclick="regenerateApiKey()">
+                            <i data-feather="refresh-cw"></i>
+                            Régénérer
+                        </button>
+                    {% else %}
+                        <button class="btn btn-primary btn-sm" onclick="generateApiKey()">
+                            <i data-feather="key"></i>
+                            Générer une clé API
+                        </button>
+                    {% endif %}
+                    
+                    <a href="/api/docs" class="btn btn-secondary btn-sm" target="_blank">
+                        <i data-feather="book"></i>
+                        Documentation API
+                    </a>
+                </div>
+                
+                <div style="background: var(--neutral-50); padding: 1rem; border-radius: var(--radius-md);">
+                    <h4 style="font-weight: 600; margin-bottom: 0.5rem;">Endpoints disponibles:</h4>
+                    <ul style="margin-left: 1.5rem; font-size: 0.875rem; color: var(--neutral-600);">
+                        <li><code>GET /api/campaigns</code> - Liste de vos campagnes</li>
+                        <li><code>POST /api/campaigns</code> - Créer une campagne</li>
+                        <li><code>GET /api/articles</code> - Récupérer les articles</li>
+                        <li><code>POST /api/search</code> - Recherche ponctuelle</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Account Actions -->
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">Actions du compte</h3>
+                </div>
+                
+                <div style="display: flex; flex-direction: column; gap: 1rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 1rem; border: 1px solid var(--neutral-200); border-radius: var(--radius-md);">
+                        <div>
+                            <h4 style="font-weight: 600; margin-bottom: 0.25rem;">Exporter mes données</h4>
+                            <p style="font-size: 0.875rem; color: var(--neutral-600);">
+                                Téléchargez toutes vos campagnes et articles au format JSON
+                            </p>
+                        </div>
+                        <button class="btn btn-secondary" onclick="exportData()">
+                            <i data-feather="download"></i>
+                            Exporter
+                        </button>
+                    </div>
+                    
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 1rem; border: 1px solid var(--neutral-200); border-radius: var(--radius-md);">
+                        <div>
+                            <h4 style="font-weight: 600; margin-bottom: 0.25rem;">Déconnecter toutes les intégrations</h4>
+                            <p style="font-size: 0.875rem; color: var(--neutral-600);">
+                                Révoque l'accès à Google Sheets et Airtable
+                            </p>
+                        </div>
+                        <button class="btn btn-warning" onclick="disconnectAll()">
+                            <i data-feather="unlink"></i>
+                            Déconnecter tout
+                        </button>
+                    </div>
+                    
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 1rem; border: 1px solid var(--error); border-radius: var(--radius-md);">
+                        <div>
+                            <h4 style="font-weight: 600; margin-bottom: 0.25rem; color: var(--error);">Supprimer mon compte</h4>
+                            <p style="font-size: 0.875rem; color: var(--neutral-600);">
+                                Supprime définitivement votre compte et toutes vos données
+                            </p>
+                        </div>
+                        <button class="btn btn-danger" onclick="deleteAccount()">
+                            <i data-feather="trash-2"></i>
+                            Supprimer
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        feather.replace();
+
+        function toggleApiKey() {
+            const input = document.getElementById('api-key');
+            const icon = document.getElementById('toggle-icon');
+            
+            if (input.type === 'password') {
+                input.type = 'text';
+                icon.setAttribute('data-feather', 'eye-off');
+            } else {
+                input.type = 'password';
+                icon.setAttribute('data-feather', 'eye');
+            }
+            feather.replace();
+        }
+
+        function copyApiKey() {
+            const input = document.getElementById('api-key');
+            input.select();
+            document.execCommand('copy');
+            
+            // Show temporary feedback
+            const btn = event.target.closest('button');
+            const originalHTML = btn.innerHTML;
+            btn.innerHTML = '<i data-feather="check"></i>';
+            feather.replace();
+            
+            setTimeout(() => {
+                btn.innerHTML = originalHTML;
+                feather.replace();
+            }, 2000);
+        }
+
+        function generateApiKey() {
+            if (confirm('Générer une nouvelle clé API ? Vous devrez mettre à jour vos intégrations existantes.')) {
+                fetch('/api/keys/generate', { method: 'POST' })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            location.reload();
+                        } else {
+                            alert('Erreur lors de la génération de la clé API');
+                        }
+                    });
+            }
+        }
+
+        function regenerateApiKey() {
+            if (confirm('Régénérer votre clé API ? Vos intégrations actuelles cesseront de fonctionner.')) {
+                fetch('/api/keys/regenerate', { method: 'POST' })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            location.reload();
+                        } else {
+                            alert('Erreur lors de la régénération de la clé API');
+                        }
+                    });
+            }
+        }
+
+        function exportData() {
+            window.open('/profile/export', '_blank');
+        }
+
+        function disconnectAll() {
+            if (confirm('Déconnecter toutes vos intégrations ? Vos campagnes continueront mais ne sauvegarderont plus d\'articles.')) {
+                fetch('/profile/disconnect-all', { method: 'POST' })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            alert('Toutes les intégrations ont été déconnectées');
+                            location.reload();
+                        } else {
+                            alert('Erreur lors de la déconnexion');
+                        }
+                    });
+            }
+        }
+
+        function deleteAccount() {
+            const confirmation = prompt('Pour confirmer la suppression, tapez "SUPPRIMER" en majuscules:');
+            if (confirmation === 'SUPPRIMER') {
+                fetch('/profile/delete', { method: 'DELETE' })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            alert('Votre compte a été supprimé');
+                            window.location.href = '/';
+                        } else {
+                            alert('Erreur lors de la suppression du compte');
+                        }
+                    });
+            }
+        }
+    </script>
+</body>
+</html>

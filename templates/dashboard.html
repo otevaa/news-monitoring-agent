@@ -1,41 +1,333 @@
 <!DOCTYPE html>
-<html>
+<html lang="fr">
 <head>
-  <title>Dashboard Veille</title>
-  <style>
-    body { font-family: Arial, sans-serif; margin: 30px; }
-    input { padding: 5px; width: 300px; }
-    button { padding: 6px 12px; }
-    .error { color: red; font-weight: bold; }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NewsMonitor Pro - Tableau de bord</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <script src="https://unpkg.com/feather-icons"></script>
 </head>
 <body>
-  <h1>Veille automatique</h1>
-  {% if not session.credentials %}
-    <a href="/auth">Connecter mon compte Google</a>
-  {% endif %}
+    <header class="header">
+        <div class="container">
+            <div class="header-content">
+                <a href="/" class="logo">
+                    <div class="logo-icon">
+                        <i data-feather="trending-up"></i>
+                    </div>
+                    NewsMonitor Pro
+                </a>
+                
+                <nav class="nav">
+                    <a href="/" class="nav-link active">Dashboard</a>
+                    <a href="/campaigns" class="nav-link">Campagnes</a>
+                    <a href="/integrations" class="nav-link">Intégrations</a>
+                    <a href="/analytics" class="nav-link">Analytics</a>
+                </nav>
+                
+                <div class="user-menu">
+                    {% if session.credentials %}
+                        <div class="user-info">
+                            <span class="status-badge status-active">Connecté</span>
+                        </div>
+                        <a href="/profile" class="btn btn-secondary btn-sm">
+                            <i data-feather="user"></i>
+                            Profil
+                        </a>
+                    {% else %}
+                        <a href="/auth" class="auth-button">
+                            <i data-feather="log-in"></i>
+                            Se connecter
+                        </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </header>
 
-  <form method="get" action="/veille">
-    <input type="text" name="q" placeholder="Sujet" />
-    <button type="submit">Lancer la veille</button>
-  </form>
+    <main class="main">
+        <div class="container">
+            <!-- Hero Section -->
+            <div class="hero-section" style="text-align: center; margin-bottom: 3rem;">
+                <h1 style="font-size: 2.5rem; font-weight: 700; color: var(--neutral-800); margin-bottom: 1rem;">
+                    Surveillez l'actualité en temps réel
+                </h1>
+                <p style="font-size: 1.125rem; color: var(--neutral-600); max-width: 600px; margin: 0 auto 2rem;">
+                    Créez des campagnes de veille personnalisées et recevez automatiquement les articles pertinents dans vos outils préférés.
+                </p>
+                
+                {% if not session.credentials %}
+                    <a href="/auth" class="btn btn-primary btn-lg">
+                        <i data-feather="zap"></i>
+                        Commencer maintenant
+                    </a>
+                {% endif %}
+            </div>
 
-  {% if error %}
-    <p class="error">{{ error }}</p>
-  {% endif %}
+            <!-- Alerts -->
+            {% if error %}
+                <div class="alert alert-error">
+                    <strong>Erreur:</strong> {{ error }}
+                </div>
+            {% endif %}
 
-  {% if articles %}
-    <h2>Résultats</h2>
-    <ul>
-      {% for a in articles %}
-        <li>
-          <strong>{{ a.titre }}</strong><br>
-          <em>{{ a.date }} — {{ a.source }}</em><br>
-          <a href="{{ a.url }}" target="_blank">{{ a.url }}</a><br>
-          <p>{{ a.resume }}</p>
-        </li>
-      {% endfor %}
-    </ul>
-  {% endif %}
+            {% if success %}
+                <div class="alert alert-success">
+                    <strong>Succès:</strong> {{ success }}
+                </div>
+            {% endif %}
+
+            <!-- Quick Search -->
+            {% if session.credentials %}
+            <div class="card" style="margin-bottom: 2rem;">
+                <div class="card-header">
+                    <h2 class="card-title">Recherche rapide</h2>
+                    <p class="card-subtitle">Lancez une recherche ponctuelle</p>
+                </div>
+                
+                <form method="get" action="/veille" class="search-container">
+                    <i data-feather="search" class="search-icon"></i>
+                    <input 
+                        type="text" 
+                        name="q" 
+                        class="search-input" 
+                        placeholder="Saisissez votre mot-clé (ex: intelligence artificielle, cybersécurité...)"
+                        value="{{ request.args.get('q', '') }}"
+                    />
+                    <button type="submit" class="btn btn-primary" style="position: absolute; right: 0.5rem; top: 50%; transform: translateY(-50%);">
+                        <i data-feather="search"></i>
+                        Rechercher
+                    </button>
+                </form>
+            </div>
+            {% endif %}
+
+            <!-- Dashboard Stats -->
+            {% if session.credentials %}
+            <div class="dashboard-grid">
+                <!-- Statistics Cards -->
+                <div class="card stat-card">
+                    <span class="stat-number">{{ stats.active_campaigns or 0 }}</span>
+                    <span class="stat-label">Campagnes actives</span>
+                </div>
+                
+                <div class="card stat-card">
+                    <span class="stat-number">{{ stats.total_articles or 0 }}</span>
+                    <span class="stat-label">Articles collectés</span>
+                </div>
+                
+                <div class="card stat-card">
+                    <span class="stat-number">{{ stats.articles_today or 0 }}</span>
+                    <span class="stat-label">Aujourd'hui</span>
+                </div>
+                
+                <div class="card stat-card">
+                    <span class="stat-number">{{ stats.integrations_count or 0 }}</span>
+                    <span class="stat-label">Intégrations</span>
+                </div>
+            </div>
+
+            <!-- Recent Campaigns and Integration Status -->
+            <div class="dashboard-grid">
+                <!-- Recent Campaigns -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">Campagnes récentes</h2>
+                        <a href="/campaigns/create" class="btn btn-primary btn-sm">
+                            <i data-feather="plus"></i>
+                            Nouvelle campagne
+                        </a>
+                    </div>
+                    
+                    {% if campaigns %}
+                    <div class="campaign-list">
+                        {% for campaign in campaigns[:5] %}
+                        <div class="campaign-item">
+                            <div class="campaign-info">
+                                <h4>{{ campaign.name }}</h4>
+                                <div class="campaign-meta">
+                                    <span><i data-feather="search"></i> {{ campaign.keywords }}</span>
+                                    <span><i data-feather="clock"></i> {{ campaign.frequency }}</span>
+                                    <span class="status-badge status-{{ campaign.status }}">{{ campaign.status }}</span>
+                                </div>
+                            </div>
+                            <div class="campaign-actions">
+                                {% if campaign.status == 'active' %}
+                                    <button class="btn btn-warning btn-sm" onclick="pauseCampaign('{{ campaign.id }}')">
+                                        <i data-feather="pause"></i>
+                                    </button>
+                                {% elif campaign.status == 'paused' %}
+                                    <button class="btn btn-success btn-sm" onclick="resumeCampaign('{{ campaign.id }}')">
+                                        <i data-feather="play"></i>
+                                    </button>
+                                {% endif %}
+                                <a href="/campaigns/{{ campaign.id }}/edit" class="btn btn-secondary btn-sm">
+                                    <i data-feather="edit"></i>
+                                </a>
+                                <button class="btn btn-danger btn-sm" onclick="deleteCampaign('{{ campaign.id }}')">
+                                    <i data-feather="trash-2"></i>
+                                </button>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    
+                    {% if campaigns|length > 5 %}
+                    <div style="text-align: center; margin-top: 1rem;">
+                        <a href="/campaigns" class="btn btn-secondary">
+                            Voir toutes les campagnes
+                        </a>
+                    </div>
+                    {% endif %}
+                    
+                    {% else %}
+                    <div style="text-align: center; padding: 2rem; color: var(--neutral-500);">
+                        <i data-feather="inbox" style="width: 48px; height: 48px; margin-bottom: 1rem;"></i>
+                        <p>Aucune campagne pour le moment</p>
+                        <a href="/campaigns/create" class="btn btn-primary" style="margin-top: 1rem;">
+                            <i data-feather="plus"></i>
+                            Créer votre première campagne
+                        </a>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <!-- Integration Status -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">Intégrations</h2>
+                        <a href="/integrations" class="btn btn-secondary btn-sm">
+                            <i data-feather="settings"></i>
+                            Configurer
+                        </a>
+                    </div>
+                    
+                    <div class="integration-grid">
+                        <div class="integration-card {% if integrations.google_sheets %}active{% endif %}">
+                            <div class="integration-icon" style="background: #4285f4; color: white;">
+                                <i data-feather="file-text"></i>
+                            </div>
+                            <h4>Google Sheets</h4>
+                            <p style="font-size: 0.875rem; color: var(--neutral-500); margin-top: 0.5rem;">
+                                {% if integrations.google_sheets %}Connecté{% else %}Non configuré{% endif %}
+                            </p>
+                        </div>
+                        
+                        <div class="integration-card {% if integrations.airtable %}active{% endif %}">
+                            <div class="integration-icon" style="background: #ff6900; color: white;">
+                                <i data-feather="database"></i>
+                            </div>
+                            <h4>Airtable</h4>
+                            <p style="font-size: 0.875rem; color: var(--neutral-500); margin-top: 0.5rem;">
+                                {% if integrations.airtable %}Connecté{% else %}Non configuré{% endif %}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Search Results -->
+            {% if articles %}
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">Résultats de recherche</h2>
+                    <span class="card-subtitle">{{ articles|length }} articles trouvés pour "{{ request.args.get('q') }}"</span>
+                </div>
+                
+                <div style="display: grid; gap: 1rem;">
+                    {% for article in articles %}
+                    <div class="card" style="padding: 1.5rem; border-left: 4px solid var(--primary-blue);">
+                        <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 1rem;">
+                            <div>
+                                <h3 style="font-size: 1.125rem; font-weight: 600; margin-bottom: 0.5rem;">
+                                    <a href="{{ article.url }}" target="_blank" style="color: var(--neutral-800); text-decoration: none;">
+                                        {{ article.titre }}
+                                    </a>
+                                </h3>
+                                <div style="font-size: 0.875rem; color: var(--neutral-500); display: flex; gap: 1rem;">
+                                    <span><i data-feather="calendar"></i> {{ article.date[:10] }}</span>
+                                    <span><i data-feather="globe"></i> {{ article.source }}</span>
+                                </div>
+                            </div>
+                            <a href="{{ article.url }}" target="_blank" class="btn btn-secondary btn-sm">
+                                <i data-feather="external-link"></i>
+                                Lire
+                            </a>
+                        </div>
+                        <p style="color: var(--neutral-600); line-height: 1.6;">{{ article.resume }}</p>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                {% if articles %}
+                <div style="text-align: center; margin-top: 1.5rem;">
+                    <a href="/campaigns/create?keywords={{ request.args.get('q') }}" class="btn btn-primary">
+                        <i data-feather="bookmark"></i>
+                        Créer une campagne avec ces mots-clés
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+    </main>
+
+    <script>
+        // Initialize Feather Icons
+        feather.replace();
+
+        // Campaign Management Functions
+        function pauseCampaign(campaignId) {
+            if (confirm('Êtes-vous sûr de vouloir mettre en pause cette campagne ?')) {
+                fetch(`/campaigns/${campaignId}/pause`, { method: 'POST' })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            location.reload();
+                        } else {
+                            alert('Erreur lors de la mise en pause');
+                        }
+                    });
+            }
+        }
+
+        function resumeCampaign(campaignId) {
+            fetch(`/campaigns/${campaignId}/resume`, { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        location.reload();
+                    } else {
+                        alert('Erreur lors de la reprise');
+                    }
+                });
+        }
+
+        function deleteCampaign(campaignId) {
+            if (confirm('Êtes-vous sûr de vouloir supprimer définitivement cette campagne ? Cette action est irréversible.')) {
+                fetch(`/campaigns/${campaignId}`, { method: 'DELETE' })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            location.reload();
+                        } else {
+                            alert('Erreur lors de la suppression');
+                        }
+                    });
+            }
+        }
+
+        // Auto-refresh campaigns status
+        setInterval(() => {
+            fetch('/api/campaigns/status')
+                .then(response => response.json())
+                .then(data => {
+                    // Update campaign statuses in real-time if needed
+                });
+        }, 30000); // Every 30 seconds
+    </script>
 </body>
 </html>

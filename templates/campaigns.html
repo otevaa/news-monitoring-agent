@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestion des Campagnes - NewsMonitor Pro</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://unpkg.com/feather-icons"></script>
+</head>
+<body>
+    <header class="header">
+        <div class="container">
+            <div class="header-content">
+                <a href="/" class="logo">
+                    <div class="logo-icon">
+                        <i data-feather="trending-up"></i>
+                    </div>
+                    NewsMonitor Pro
+                </a>
+                
+                <nav class="nav">
+                    <a href="/" class="nav-link">Dashboard</a>
+                    <a href="/campaigns" class="nav-link active">Campagnes</a>
+                    <a href="/integrations" class="nav-link">Intégrations</a>
+                    <a href="/analytics" class="nav-link">Analytics</a>
+                </nav>
+                
+                <div class="user-menu">
+                    <a href="/profile" class="btn btn-secondary btn-sm">
+                        <i data-feather="user"></i>
+                        Profil
+                    </a>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="main">
+        <div class="container">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+                <div>
+                    <h1 style="font-size: 2rem; font-weight: 700; color: var(--neutral-800); margin-bottom: 0.5rem;">
+                        Mes Campagnes de Veille
+                    </h1>
+                    <p style="color: var(--neutral-600);">
+                        Gérez vos campagnes de surveillance automatique
+                    </p>
+                </div>
+                <a href="/campaigns/create" class="btn btn-primary btn-lg">
+                    <i data-feather="plus"></i>
+                    Nouvelle campagne
+                </a>
+            </div>
+
+            <!-- Campaigns Grid -->
+            {% if campaigns %}
+            <div style="display: grid; gap: 1.5rem;">
+                {% for campaign in campaigns %}
+                <div class="card">
+                    <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 1rem;">
+                        <div>
+                            <h3 style="font-size: 1.5rem; font-weight: 600; margin-bottom: 0.5rem;">
+                                {{ campaign.name }}
+                            </h3>
+                            <div style="display: flex; gap: 1rem; align-items: center; margin-bottom: 1rem;">
+                                <span class="status-badge status-{{ campaign.status }}">
+                                    {{ campaign.status|title }}
+                                </span>
+                                <span style="font-size: 0.875rem; color: var(--neutral-500);">
+                                    <i data-feather="clock"></i> {{ campaign.frequency }}
+                                </span>
+                                <span style="font-size: 0.875rem; color: var(--neutral-500);">
+                                    <i data-feather="calendar"></i> Créée le {{ campaign.created_at[:10] }}
+                                </span>
+                            </div>
+                        </div>
+                        
+                        <div style="display: flex; gap: 0.5rem;">
+                            {% if campaign.status == 'active' %}
+                                <button class="btn btn-warning btn-sm" onclick="pauseCampaign('{{ campaign.id }}')">
+                                    <i data-feather="pause"></i>
+                                    Pause
+                                </button>
+                            {% elif campaign.status == 'paused' %}
+                                <button class="btn btn-success btn-sm" onclick="resumeCampaign('{{ campaign.id }}')">
+                                    <i data-feather="play"></i>
+                                    Reprendre
+                                </button>
+                            {% endif %}
+                            
+                            <a href="/campaigns/{{ campaign.id }}/edit" class="btn btn-secondary btn-sm">
+                                <i data-feather="edit"></i>
+                                Modifier
+                            </a>
+                            
+                            <button class="btn btn-danger btn-sm" onclick="deleteCampaign('{{ campaign.id }}')">
+                                <i data-feather="trash-2"></i>
+                                Supprimer
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div style="margin-bottom: 1rem;">
+                        <h4 style="font-weight: 600; margin-bottom: 0.5rem; color: var(--neutral-700);">Mots-clés surveillés:</h4>
+                        <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
+                            {% for keyword in campaign.keywords.split(',') %}
+                            <span style="background: var(--neutral-100); padding: 0.25rem 0.75rem; border-radius: 1rem; font-size: 0.875rem; color: var(--neutral-700);">
+                                {{ keyword.strip() }}
+                            </span>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 1rem; padding: 1rem; background: var(--neutral-50); border-radius: var(--radius-lg);">
+                        <div style="text-align: center;">
+                            <div style="font-size: 1.5rem; font-weight: 700; color: var(--primary-blue);">
+                                {{ campaign.total_articles or 0 }}
+                            </div>
+                            <div style="font-size: 0.75rem; color: var(--neutral-600); text-transform: uppercase;">
+                                Articles trouvés
+                            </div>
+                        </div>
+                        <div style="text-align: center;">
+                            <div style="font-size: 1.5rem; font-weight: 700; color: var(--accent-green);">
+                                {{ campaign.articles_today or 0 }}
+                            </div>
+                            <div style="font-size: 0.75rem; color: var(--neutral-600); text-transform: uppercase;">
+                                Aujourd'hui
+                            </div>
+                        </div>
+                        <div style="text-align: center;">
+                            <div style="font-size: 1.5rem; font-weight: 700; color: var(--accent-orange);">
+                                {{ campaign.last_check or 'Jamais' }}
+                            </div>
+                            <div style="font-size: 0.75rem; color: var(--neutral-600); text-transform: uppercase;">
+                                Dernière vérif.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            
+            {% else %}
+            <!-- Empty State -->
+            <div class="card" style="text-align: center; padding: 3rem;">
+                <div style="margin-bottom: 2rem;">
+                    <i data-feather="search" style="width: 64px; height: 64px; color: var(--neutral-400);"></i>
+                </div>
+                <h3 style="font-size: 1.5rem; font-weight: 600; margin-bottom: 1rem; color: var(--neutral-800);">
+                    Aucune campagne active
+                </h3>
+                <p style="color: var(--neutral-600); margin-bottom: 2rem; max-width: 400px; margin-left: auto; margin-right: auto;">
+                    Créez votre première campagne de veille pour commencer à surveiller l'actualité automatiquement.
+                </p>
+                <a href="/campaigns/create" class="btn btn-primary btn-lg">
+                    <i data-feather="plus"></i>
+                    Créer ma première campagne
+                </a>
+            </div>
+            {% endif %}
+        </div>
+    </main>
+
+    <script>
+        feather.replace();
+
+        function pauseCampaign(campaignId) {
+            if (confirm('Êtes-vous sûr de vouloir mettre en pause cette campagne ?')) {
+                fetch(`/campaigns/${campaignId}/pause`, { method: 'POST' })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            location.reload();
+                        } else {
+                            alert('Erreur lors de la mise en pause');
+                        }
+                    });
+            }
+        }
+
+        function resumeCampaign(campaignId) {
+            fetch(`/campaigns/${campaignId}/resume`, { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        location.reload();
+                    } else {
+                        alert('Erreur lors de la reprise');
+                    }
+                });
+        }
+
+        function deleteCampaign(campaignId) {
+            if (confirm('Êtes-vous sûr de vouloir supprimer définitivement cette campagne ? Cette action est irréversible.')) {
+                fetch(`/campaigns/${campaignId}`, { method: 'DELETE' })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            location.reload();
+                        } else {
+                            alert('Erreur lors de la suppression');
+                        }
+                    });
+            }
+        }
+    </script>
+</body>
+</html>
