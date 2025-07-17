@@ -29,6 +29,7 @@ class CampaignManager:
     
     def create_campaign(self, data: Dict) -> str:
         """Create a new campaign"""
+        self.campaigns = self._load_campaigns()  # Reload from file for fresh data
         campaign_id = str(uuid.uuid4())
         campaign = {
             'id': campaign_id,
@@ -52,6 +53,7 @@ class CampaignManager:
     
     def update_campaign(self, campaign_id: str, data: Dict) -> bool:
         """Update an existing campaign"""
+        self.campaigns = self._load_campaigns()  # Reload from file for fresh data
         for campaign in self.campaigns:
             if campaign['id'] == campaign_id:
                 campaign.update({
@@ -68,22 +70,26 @@ class CampaignManager:
         return False
     
     def get_campaign(self, campaign_id: str) -> Optional[Dict]:
-        """Get a specific campaign"""
+        """Get a specific campaign - always reload from file for fresh data"""
+        self.campaigns = self._load_campaigns()  # Reload from file
         for campaign in self.campaigns:
             if campaign['id'] == campaign_id:
                 return campaign
         return None
     
     def get_all_campaigns(self) -> List[Dict]:
-        """Get all campaigns"""
+        """Get all campaigns - always reload from file for fresh data"""
+        self.campaigns = self._load_campaigns()  # Reload from file
         return self.campaigns
     
     def get_active_campaigns(self) -> List[Dict]:
-        """Get only active campaigns"""
+        """Get only active campaigns - always reload from file for fresh data"""
+        self.campaigns = self._load_campaigns()  # Reload from file
         return [c for c in self.campaigns if c['status'] == 'active']
     
     def get_recent_campaigns(self, limit: int = 5) -> List[Dict]:
-        """Get recent campaigns sorted by creation date"""
+        """Get recent campaigns sorted by creation date - always reload from file for fresh data"""
+        self.campaigns = self._load_campaigns()  # Reload from file
         sorted_campaigns = sorted(
             self.campaigns, 
             key=lambda x: x['created_at'], 
@@ -93,6 +99,7 @@ class CampaignManager:
     
     def pause_campaign(self, campaign_id: str) -> bool:
         """Pause a campaign"""
+        self.campaigns = self._load_campaigns()  # Reload from file for fresh data
         for campaign in self.campaigns:
             if campaign['id'] == campaign_id:
                 campaign['status'] = 'paused'
@@ -103,6 +110,7 @@ class CampaignManager:
     
     def resume_campaign(self, campaign_id: str) -> bool:
         """Resume a paused campaign"""
+        self.campaigns = self._load_campaigns()  # Reload from file for fresh data
         for campaign in self.campaigns:
             if campaign['id'] == campaign_id:
                 campaign['status'] = 'active'
@@ -113,6 +121,7 @@ class CampaignManager:
     
     def delete_campaign(self, campaign_id: str) -> bool:
         """Delete a campaign"""
+        self.campaigns = self._load_campaigns()  # Reload from file for fresh data
         for i, campaign in enumerate(self.campaigns):
             if campaign['id'] == campaign_id:
                 del self.campaigns[i]
@@ -122,6 +131,7 @@ class CampaignManager:
     
     def update_campaign_stats(self, campaign_id: str, articles_count: int):
         """Update campaign statistics after fetching articles"""
+        self.campaigns = self._load_campaigns()  # Reload from file for fresh data
         for campaign in self.campaigns:
             if campaign['id'] == campaign_id:
                 campaign['total_articles'] = campaign.get('total_articles', 0) + articles_count
@@ -143,19 +153,23 @@ class CampaignManager:
                 break
     
     def get_total_campaigns_count(self) -> int:
-        """Get total number of campaigns"""
+        """Get total number of campaigns - always reload from file for fresh data"""
+        self.campaigns = self._load_campaigns()  # Reload from file
         return len(self.campaigns)
     
     def get_total_articles_count(self) -> int:
-        """Get total number of articles across all campaigns"""
+        """Get total number of articles across all campaigns - always reload from file for fresh data"""
+        self.campaigns = self._load_campaigns()  # Reload from file
         return sum(c.get('total_articles', 0) for c in self.campaigns)
     
     def get_articles_today_count(self) -> int:
-        """Get total number of articles found today"""
+        """Get total number of articles found today - always reload from file for fresh data"""
+        self.campaigns = self._load_campaigns()  # Reload from file
         return sum(c.get('articles_today', 0) for c in self.campaigns)
     
     def get_campaigns_for_execution(self) -> List[Dict]:
-        """Get campaigns that need to be executed based on their frequency"""
+        """Get campaigns that need to be executed based on their frequency - always reload from file for fresh data"""
+        self.campaigns = self._load_campaigns()  # Reload from file
         active_campaigns = self.get_active_campaigns()
         campaigns_to_run = []
         

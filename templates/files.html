@@ -210,26 +210,49 @@
     </style>
 </head>
 <body>
-    <div class="container">
-        <nav style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 2rem;">
-            <div style="display: flex; align-items: center; gap: 1rem;">
-                <a href="/" class="btn btn-ghost" style="padding: 0.5rem;">
-                    <i data-feather="arrow-left"></i>
+    <header class="header">
+        <div class="container">
+            <div class="header-content">
+                <a href="/" class="logo">
+                    <div class="logo-icon">
+                        <i data-feather="trending-up"></i>
+                    </div>
+                    NewsMonitor Pro
                 </a>
-                <h1 style="margin: 0;">Gestion des fichiers</h1>
+                
+                <nav class="nav">
+                    <a href="/" class="nav-link">Dashboard</a>
+                    <a href="/campaigns" class="nav-link">Campagnes</a>
+                    <a href="/integrations" class="nav-link">Intégrations</a>
+                    <a href="/files" class="nav-link active">Fichiers</a>
+                    <a href="/analytics" class="nav-link">Analytics</a>
+                </nav>
+                
+                <div class="user-menu">
+                    {% if session.credentials %}
+                        <div class="user-info">
+                            <span class="status-badge status-active">Connecté</span>
+                        </div>
+                        <a href="/profile" class="btn btn-secondary btn-sm">
+                            <i data-feather="user"></i>
+                            Profil
+                        </a>
+                    {% else %}
+                        <a href="/auth" class="auth-button">
+                            <i data-feather="log-in"></i>
+                            Se connecter
+                        </a>
+                    {% endif %}
+                </div>
             </div>
-            
-            <div style="display: flex; align-items: center; gap: 1rem;">
-                <a href="/campaigns" class="btn btn-outline">
-                    <i data-feather="target"></i>
-                    Campagnes
-                </a>
-                <a href="/campaigns/create" class="btn btn-primary">
-                    <i data-feather="plus"></i>
-                    Nouvelle campagne
-                </a>
+        </div>
+    </header>
+
+    <main class="main">
+        <div class="container">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 2rem;">
+                <h1 style="margin: 0; font-size: 2rem; font-weight: 700; color: var(--neutral-800);">Gestion des fichiers</h1>
             </div>
-        </nav>
 
         {% if error %}
         <div class="alert alert-danger">
@@ -409,5 +432,7 @@
         // Initialize Feather icons
         feather.replace();
     </script>
+        </div>
+    </main>
 </body>
 </html>

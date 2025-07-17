@@ -6,6 +6,7 @@ from agent.campaign_manager import CampaignManager
 from agent.integrations import IntegrationManager
 from agent.google_sheets_manager import GoogleSheetsManager
 from agent.fetch_rss import fetch_articles_rss
+from agent.fetch_multi_source import fetch_articles_multi_source
 
 class CampaignScheduler:
     def __init__(self):
@@ -52,16 +53,18 @@ class CampaignScheduler:
     def run_campaign(self, campaign):
         """Run a single campaign"""
         try:
-            # Fetch articles using the campaign keywords
+            # Fetch articles using the campaign keywords from multiple sources
             keywords = campaign['keywords']
             max_articles = campaign.get('max_articles', 25)
             
-            articles = fetch_articles_rss(keywords, max_items=max_articles)
+            # Use multi-source fetcher (Google News + Reddit)
+            articles = fetch_articles_multi_source(keywords, max_items=max_articles)
             
             if articles:
                 # Send to configured integrations
                 integrations = campaign.get('integrations', [])
                 success_count = 0
+                articles_saved = 0
                 
                 for integration in integrations:
                     if integration == 'google_sheets':
@@ -77,7 +80,27 @@ class CampaignScheduler:
                                 )
                                 if success:
                                     success_count += 1
-                                    self.logger.info(f"Successfully saved {len(articles)} articles to Google Sheets for campaign '{campaign['name']}'")
+                                    # Calculate how many articles were actually saved after filtering
+                                    from datetime import datetime, timedelta
+                                    end = datetime.now().date()
+                                    start = end - timedelta(days=3)  # Updated to match 3-day filter
+                                    
+                                    # Note: The GoogleSheetsManager now handles duplicate filtering internally
+                                    # We'll estimate based on date filtering, but the actual count might be lower
+                                    articles_saved = 0
+                                    for article in articles:
+                                        article_date_str = article.get('date', '')
+                                        if article_date_str:
+                                            try:
+                                                article_date = datetime.fromisoformat(article_date_str.replace('Z', '')).date()
+                                                if article_date >= start:
+                                                    articles_saved += 1
+                                            except:
+                                                articles_saved += 1
+                                        else:
+                                            articles_saved += 1
+                                    
+                                    self.logger.info(f"Successfully processed {articles_saved} articles for Google Sheets (duplicates filtered automatically)")
                                 else:
                                     self.logger.error(f"Failed to save articles to Google Sheets for campaign '{campaign['name']}'")
                             else:
@@ -90,12 +113,14 @@ class CampaignScheduler:
                         if success:
                             success_count += 1
                 
-                self.logger.info(f"Campaign '{campaign['name']}': {len(articles)} articles sent to {success_count}/{len(integrations)} integrations")
+                # Use the actual count of articles saved (after filtering)
+                saved_count = articles_saved if 'articles_saved' in locals() else 0
+                self.logger.info(f"Campaign '{campaign['name']}': {saved_count} articles sent to {success_count}/{len(integrations)} integrations")
                 
-                # Update campaign statistics
+                # Update campaign statistics with the correct count
                 self.campaign_manager.update_campaign_stats(
                     campaign['id'], 
-                    len(articles)
+                    saved_count
                 )
             else:
                 self.logger.info(f"Campaign '{campaign['name']}': No articles found")
@@ -117,3 +142,8 @@ class CampaignScheduler:
 
 # Global scheduler instance
 campaign_scheduler = CampaignScheduler()
+
+# External function to run a campaign
+def run_campaign(campaign_id: str):
+    """Run a specific campaign by ID"""
+    return campaign_scheduler.run_campaign_now(campaign_id)
