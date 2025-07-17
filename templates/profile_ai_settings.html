@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Paramètres IA - NewsMonitor Pro</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://unpkg.com/feather-icons"></script>
+</head>
+<body>
+    <header class="header">
+        <div class="container">
+            <div class="header-content">
+                <a href="/" class="logo">
+                    <div class="logo-icon">
+                        <i data-feather="trending-up"></i>
+                    </div>
+                    NewsMonitor Pro
+                </a>
+                
+                <nav class="nav">
+                    <a href="/" class="nav-link">Dashboard</a>
+                    <a href="/campaigns" class="nav-link">Campagnes</a>
+                    <a href="/integrations" class="nav-link">Intégrations</a>
+                    <a href="/analytics" class="nav-link">Analytics</a>
+                </nav>
+                
+                <div class="user-menu">
+                    <a href="/profile" class="btn btn-secondary btn-sm">
+                        <i data-feather="user"></i>
+                        Profil
+                    </a>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="main">
+        <div class="container" style="max-width: 800px;">
+            <div style="margin-bottom: 2rem;">
+                <h1 style="font-size: 2rem; font-weight: 700; color: var(--neutral-800); margin-bottom: 0.5rem;">
+                    Paramètres IA
+                </h1>
+                <p style="color: var(--neutral-600);">
+                    Configurez les paramètres d'intelligence artificielle utilisés pour toutes vos campagnes
+                </p>
+            </div>
+            
+            <div class="card" style="margin-bottom: 2rem;">
+                <div class="card-header">
+                    <h3 class="card-title">Configuration du modèle IA</h3>
+                    <p class="card-subtitle">Choisissez le modèle IA qui analysera la pertinence des articles</p>
+                </div>
+                
+                <form id="ai-settings-form" method="POST">
+                    <div class="form-group">
+                        <label class="form-label" for="ai_model">Modèle IA</label>
+                        <select id="ai_model" name="ai_model" class="form-select" required>
+                            <option value="openai-gpt3.5" {{ 'selected' if profile.ai_model == 'openai-gpt3.5' else '' }}>
+                                OpenAI GPT-3.5 Turbo (Rapide)
+                            </option>
+                            <option value="openai-gpt4" {{ 'selected' if profile.ai_model == 'openai-gpt4' else '' }}>
+                                OpenAI GPT-4 (Précis)
+                            </option>
+                            <option value="huggingface-bert" {{ 'selected' if profile.ai_model == 'huggingface-bert' else '' }}>
+                                HuggingFace BERT (Gratuit)
+                            </option>
+                            <option value="ollama-llama2" {{ 'selected' if profile.ai_model == 'ollama-llama2' else '' }}>
+                                Ollama Llama 2 (Local)
+                            </option>
+                            <option value="anthropic-claude" {{ 'selected' if profile.ai_model == 'anthropic-claude' else '' }}>
+                                Anthropic Claude (Alternatif)
+                            </option>
+                        </select>
+                        <small class="form-help">Choisissez le modèle IA qui analysera la pertinence des articles</small>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label" for="relevance_threshold">Seuil de pertinence</label>
+                        <input type="range" id="relevance_threshold" name="relevance_threshold" 
+                               min="30" max="95" value="{{ profile.relevance_threshold or 70 }}" 
+                               class="form-range"
+                               oninput="updateThresholdValue(this.value)">
+                        <div style="display: flex; align-items: center; justify-content: center; margin-top: 0.5rem;">
+                            <span id="threshold-value" style="font-size: 1.25rem; font-weight: 600; color: var(--primary-blue);">
+                                {{ profile.relevance_threshold or 70 }}%
+                            </span>
+                        </div>
+                        <small class="form-help">Articles avec un score inférieur seront filtrés (30% = plus d'articles, 95% = très sélectif)</small>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Fonctionnalités IA</label>
+                        <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                            <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; cursor: pointer;">
+                                <input type="checkbox" name="ai_filtering_enabled" 
+                                       {{ 'checked' if profile.ai_filtering_enabled else '' }}
+                                       style="width: 1rem; height: 1rem; accent-color: var(--primary-blue);">
+                                Filtrage intelligent des articles
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; cursor: pointer;">
+                                <input type="checkbox" name="keyword_expansion_enabled" 
+                                       {{ 'checked' if profile.keyword_expansion_enabled else '' }}
+                                       style="width: 1rem; height: 1rem; accent-color: var(--primary-blue);">
+                                Expansion automatique des mots-clés
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; cursor: pointer;">
+                                <input type="checkbox" name="priority_alerts_enabled" 
+                                       {{ 'checked' if profile.priority_alerts_enabled else '' }}
+                                       style="width: 1rem; height: 1rem; accent-color: var(--primary-blue);">
+                                Alertes prioritaires intelligentes
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div style="display: flex; justify-content: flex-end; gap: 0.5rem;">
+                        <button type="button" class="btn btn-secondary" onclick="testAIModel()">
+                            <i data-feather="play"></i>
+                            Tester le modèle
+                        </button>
+                        <button type="submit" class="btn btn-primary">
+                            <i data-feather="save"></i>
+                            Sauvegarder les paramètres
+                        </button>
+                        <a href="{{ url_for('profile') }}" class="btn btn-outline">
+                            <i data-feather="arrow-left"></i>
+                            Retour
+                        </a>
+                    </div>
+                </form>
+            </div>
+            
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">Informations sur les modèles</h3>
+                    <p class="card-subtitle">Comparez les différents modèles IA disponibles</p>
+                </div>
+                
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem;">
+                    <div style="background: var(--neutral-50); padding: 1rem; border-radius: var(--radius-md); border: 1px solid var(--neutral-200);">
+                        <h4 style="font-size: 0.875rem; font-weight: 600; color: var(--neutral-800); margin-bottom: 0.5rem;">
+                            <i data-feather="zap" style="width: 1rem; height: 1rem; margin-right: 0.5rem;"></i>
+                            OpenAI GPT-3.5/4
+                        </h4>
+                        <p style="font-size: 0.75rem; color: var(--neutral-600); margin-bottom: 0.25rem;">• Très précis et performant</p>
+                        <p style="font-size: 0.75rem; color: var(--neutral-600); margin-bottom: 0.25rem;">• Payant (API)</p>
+                        <p style="font-size: 0.75rem; color: var(--neutral-600);">• Meilleur pour l'analyse sémantique</p>
+                    </div>
+                    
+                    <div style="background: var(--neutral-50); padding: 1rem; border-radius: var(--radius-md); border: 1px solid var(--neutral-200);">
+                        <h4 style="font-size: 0.875rem; font-weight: 600; color: var(--neutral-800); margin-bottom: 0.5rem;">
+                            <i data-feather="heart" style="width: 1rem; height: 1rem; margin-right: 0.5rem;"></i>
+                            HuggingFace BERT
+                        </h4>
+                        <p style="font-size: 0.75rem; color: var(--neutral-600); margin-bottom: 0.25rem;">• Gratuit et open-source</p>
+                        <p style="font-size: 0.75rem; color: var(--neutral-600); margin-bottom: 0.25rem;">• Bon pour l'analyse de sentiment</p>
+                        <p style="font-size: 0.75rem; color: var(--neutral-600);">• Moins précis que GPT</p>
+                    </div>
+                    
+                    <div style="background: var(--neutral-50); padding: 1rem; border-radius: var(--radius-md); border: 1px solid var(--neutral-200);">
+                        <h4 style="font-size: 0.875rem; font-weight: 600; color: var(--neutral-800); margin-bottom: 0.5rem;">
+                            <i data-feather="shield" style="width: 1rem; height: 1rem; margin-right: 0.5rem;"></i>
+                            Ollama Local
+                        </h4>
+                        <p style="font-size: 0.75rem; color: var(--neutral-600); margin-bottom: 0.25rem;">• Totalement privé et gratuit</p>
+                        <p style="font-size: 0.75rem; color: var(--neutral-600); margin-bottom: 0.25rem;">• Nécessite installation locale</p>
+                        <p style="font-size: 0.75rem; color: var(--neutral-600);">• Performance dépend du matériel</p>
+                    </div>
+                    
+                    <div style="background: var(--neutral-50); padding: 1rem; border-radius: var(--radius-md); border: 1px solid var(--neutral-200);">
+                        <h4 style="font-size: 0.875rem; font-weight: 600; color: var(--neutral-800); margin-bottom: 0.5rem;">
+                            <i data-feather="trending-up" style="width: 1rem; height: 1rem; margin-right: 0.5rem;"></i>
+                            Anthropic Claude
+                        </h4>
+                        <p style="font-size: 0.75rem; color: var(--neutral-600); margin-bottom: 0.25rem;">• Alternative à OpenAI</p>
+                        <p style="font-size: 0.75rem; color: var(--neutral-600); margin-bottom: 0.25rem;">• Bon équilibre prix/performance</p>
+                        <p style="font-size: 0.75rem; color: var(--neutral-600);">• Nécessite clé API</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+    
+    <script>
+        // Initialize Feather icons
+        feather.replace();
+        
+        function updateThresholdValue(value) {
+            document.getElementById('threshold-value').textContent = value;
+        }
+        
+        function testAIModel() {
+            const model = document.getElementById('ai_model').value;
+            const testButton = document.querySelector('button[onclick="testAIModel()"]');
+            
+            testButton.disabled = true;
+            testButton.innerHTML = '<i data-feather="loader"></i> Test en cours...';
+            feather.replace();
+            
+            fetch('/api/test-ai-model', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ model: model })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showNotification(`Test réussi! Modèle: ${data.model} | Score: ${data.score}/100 | Temps: ${data.time}ms`, 'success');
+                } else {
+                    showNotification(`Erreur de test: ${data.error}`, 'error');
+                }
+            })
+            .catch(error => {
+                showNotification('Erreur lors du test du modèle', 'error');
+                console.error('Error:', error);
+            })
+            .finally(() => {
+                testButton.disabled = false;
+                testButton.innerHTML = '<i data-feather="play"></i> Tester le modèle';
+                feather.replace();
+            });
+        }
+        
+        // Auto-save on model change
+        document.getElementById('ai_model').addEventListener('change', function() {
+            const form = document.getElementById('ai-settings-form');
+            const formData = new FormData(form);
+            
+            fetch('/profile/ai-settings', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showNotification('Paramètres sauvegardés automatiquement', 'success');
+                }
+            })
+            .catch(error => {
+                console.error('Auto-save error:', error);
+            });
+        });
+        
+        function showNotification(message, type) {
+            const notification = document.createElement('div');
+            notification.className = `notification ${type}`;
+            notification.textContent = message;
+            notification.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                padding: 1rem 1.5rem;
+                border-radius: var(--radius-md);
+                color: white;
+                font-weight: 500;
+                box-shadow: var(--shadow-lg);
+                z-index: 1000;
+                animation: slideIn 0.3s ease;
+                background-color: ${type === 'success' ? 'var(--success)' : 'var(--error)'};
+            `;
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.remove();
+            }, 3000);
+        }
+    </script>
+</body>
+</html>

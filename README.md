@@ -1,8 +1,8 @@
-# 🔍 NewsMonitor Pro
+# 🔍 NewsMonitor Pro - Multi-AI News Monitoring Platform
 
-**A professional news monitoring platform for automated media surveillance**
+**A professional news monitoring platform with advanced AI capabilities and multiple provider support**
 
-NewsMonitor Pro helps you track news mentions, monitor industry trends, and collect relevant articles automatically. Create campaigns, set up integrations, and never miss important news again.
+NewsMonitor Pro helps you track news mentions, monitor industry trends, and collect relevant articles automatically with intelligent AI analysis. Choose from multiple AI providers based on your budget and accuracy needs.
 
 ![NewsMonitor Pro Dashboard](https://via.placeholder.com/800x400/2563eb/ffffff?text=NewsMonitor+Pro+Dashboard)
 
@@ -10,31 +10,46 @@ NewsMonitor Pro helps you track news mentions, monitor industry trends, and coll
 
 ### 🎯 **Campaign Management**
 - Create unlimited monitoring campaigns
-- Flexible keyword-based searches
+- Flexible keyword-based searches with AI expansion
 - Multiple frequency options (15min, hourly, daily, weekly)
 - Pause, resume, and modify campaigns anytime
 - Real-time statistics and analytics
 
+### 🤖 **Multi-AI Provider Support**
+- **OpenAI GPT-3.5/4**: Highest accuracy and advanced analysis
+- **HuggingFace BERT**: Free open-source sentiment analysis
+- **Ollama Local**: Complete privacy with local LLM processing
+- **Anthropic Claude**: Cost-effective alternative to OpenAI
+- **Basic Fallback**: Keyword matching when AI is unavailable
+
+### 🧠 **AI-Powered Features**
+- **Intelligent Article Filtering**: Relevance scoring with customizable thresholds
+- **Smart Keyword Expansion**: Automatically discover related terms
+- **Priority Alert System**: Detect breaking news and urgent content
+- **Cost Optimization**: Choose free or paid providers based on your needs
+
 ### 🔗 **Multiple Integrations**
 - **Google Sheets**: Automatic spreadsheet creation and updates
+- **Multi-Source Fetching**: RSS, Reddit, Facebook, X/Twitter, LinkedIn
 - **Airtable**: Advanced database with custom views and filters
 - Easy setup with guided configuration
 
 ### 📊 **Professional Dashboard**
-- Beautiful, modern interface
-- Real-time campaign statistics
-- Quick search functionality
+- Beautiful, modern interface with responsive design
+- Real-time campaign statistics and AI metrics
+- Voice command support in French
 - Integration status monitoring
-- User profile management
+- User profile with AI settings management
 
 ### 🔄 **Automated Scheduling**
-- Background campaign execution
+- Background campaign execution with AI processing
 - Intelligent frequency management
 - Error handling and logging
 - Manual campaign triggers
 
 ### 🛡️ **Enterprise Features**
 - API access for custom integrations
+- Multiple AI provider testing
 - Data export capabilities
 - Secure OAuth authentication
 - Professional design and UX
@@ -44,6 +59,7 @@ NewsMonitor Pro helps you track news mentions, monitor industry trends, and coll
 ### Prerequisites
 - Python 3.8+
 - Google Cloud Console account (for Google Sheets)
+- AI Provider API key (OpenAI, Anthropic, etc.) - optional
 - Airtable account (optional)
 
 ### Installation
@@ -54,27 +70,95 @@ NewsMonitor Pro helps you track news mentions, monitor industry trends, and coll
    cd news-monitoring-agent
    ```
 
-2. **Install dependencies**
+2. **Create virtual environment**
    ```bash
-   python manage.py install
+   python -m venv venv
+   source venv/bin/activate  # On Windows: venv\Scripts\activate
    ```
 
-3. **Configure Google OAuth** (for Google Sheets integration)
+3. **Install dependencies**
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+4. **Configure environment variables**
+   ```bash
+   cp .env.example .env
+   # Edit .env with your API keys and AI preferences
+   ```
+
+5. **Set up AI Provider** (Choose one or multiple):
+   
+   **Option A: OpenAI (Recommended for accuracy)**
+   - Get API key from [OpenAI Platform](https://platform.openai.com/api-keys)
+   - Add to `.env`: `OPENAI_API_KEY=your-key-here`
+   - Set model: `DEFAULT_AI_MODEL=openai-gpt3.5`
+
+   **Option B: HuggingFace (Free)**
+   - No API key required
+   - Set model: `DEFAULT_AI_MODEL=huggingface-bert`
+
+   **Option C: Ollama (Local & Private)**
+   - Install Ollama from [ollama.ai](https://ollama.ai)
+   - Run: `ollama pull llama2`
+   - Set model: `DEFAULT_AI_MODEL=ollama-llama2`
+
+   **Option D: Anthropic Claude (Cost-effective)**
+   - Get API key from [Anthropic Console](https://console.anthropic.com/)
+   - Add to `.env`: `ANTHROPIC_API_KEY=your-key-here`
+   - Set model: `DEFAULT_AI_MODEL=anthropic-claude`
+
+6. **Configure Google OAuth** (for Google Sheets integration)
    - Go to [Google Cloud Console](https://console.cloud.google.com/)
    - Create a new project or select existing one
    - Enable the Google Sheets API and Google Drive API
    - Create OAuth 2.0 credentials
    - Download and save as `client_secret.json` in the project root
 
-4. **Start the application**
+7. **Start the application**
    ```bash
-   python manage.py run
+   python app.py
    ```
 
-5. **Open your browser**
+8. **Open your browser**
    Navigate to `http://localhost:5000`
 
+## 🤖 AI Configuration Guide
+
+### Choosing the Right AI Provider
+
+| Provider | Cost | Accuracy | Privacy | Setup Complexity |
+|----------|------|----------|---------|------------------|
+| OpenAI GPT-4 | $$$$ | ⭐⭐⭐⭐⭐ | ⭐⭐ | Easy |
+| OpenAI GPT-3.5 | $$$ | ⭐⭐⭐⭐ | ⭐⭐ | Easy |
+| Anthropic Claude | $$$ | ⭐⭐⭐⭐ | ⭐⭐ | Easy |
+| HuggingFace BERT | Free | ⭐⭐⭐ | ⭐⭐⭐ | Easy |
+| Ollama Local | Free | ⭐⭐⭐ | ⭐⭐⭐⭐⭐ | Medium |
+| Basic Fallback | Free | ⭐⭐ | ⭐⭐⭐⭐⭐ | None |
+
+### AI Features Configuration
+
+#### Relevance Threshold Settings
+- **30-50%**: High volume, includes marginally relevant articles
+- **60-70%**: Balanced approach (recommended)
+- **80-90%**: High precision, only very relevant articles
+- **90-95%**: Ultra-precise, minimal false positives
+
+#### Cost Optimization Tips
+1. **Start with HuggingFace** for testing campaigns
+2. **Use higher thresholds** to reduce API calls
+3. **Combine providers**: Free for initial filtering, paid for final analysis
+4. **Monitor usage** in the Profile → AI Settings page
+
 ## 📱 Usage
+
+### Setting Up AI Preferences
+
+1. **Go to Profile → AI Settings**
+2. **Select your preferred AI model**
+3. **Adjust relevance threshold** (60-80% recommended)
+4. **Test the model** with the built-in test feature
+5. **Save settings** - they'll apply to all new campaigns
 
 ### Creating Your First Campaign
 
@@ -87,12 +171,20 @@ NewsMonitor Pro helps you track news mentions, monitor industry trends, and coll
    - Enter campaign name and keywords
    - Select monitoring frequency
    - Choose your integrations (Google Sheets/Airtable)
+   - AI settings are automatically applied from your profile
    - Save your campaign
 
 3. **Monitor results**
    - View real-time statistics on the dashboard
+   - Articles are automatically scored and filtered by AI
    - Access articles in your connected tools
    - Manage campaigns from the campaigns page
+
+### Voice Commands (French)
+- **"Créer une campagne"** - Create a new campaign
+- **"Afficher les résultats"** - Show results
+- **"Rechercher [keywords]"** - Search for keywords
+- **"Paramètres IA"** - Open AI settings
 
 ### Integration Setup
 

@@ -109,16 +109,16 @@
                         </label>
                         <select id="frequency" name="frequency" class="form-select" required>
                             <option value="">Choisir une fréquence</option>
-                            <option value="15min" {% if campaign and campaign.frequency == '15min' %}selected{% endif %}>
+                            <option value="15min" {% if (campaign and campaign.frequency == '15min') or (not campaign and request.args.get('frequency') == '15') %}selected{% endif %}>
                                 Toutes les 15 minutes
                             </option>
-                            <option value="hourly" {% if campaign and campaign.frequency == 'hourly' %}selected{% endif %}>
+                            <option value="hourly" {% if (campaign and campaign.frequency == 'hourly') or (not campaign and request.args.get('frequency') == '60') %}selected{% endif %}>
                                 Toutes les heures
                             </option>
-                            <option value="daily" {% if campaign and campaign.frequency == 'daily' %}selected{% endif %}>
+                            <option value="daily" {% if (campaign and campaign.frequency == 'daily') or (not campaign and request.args.get('frequency') == '1440') %}selected{% endif %}>
                                 Quotidienne (recommandé)
                             </option>
-                            <option value="weekly" {% if campaign and campaign.frequency == 'weekly' %}selected{% endif %}>
+                            <option value="weekly" {% if (campaign and campaign.frequency == 'weekly') or (not campaign and request.args.get('frequency') == '10080') %}selected{% endif %}>
                                 Hebdomadaire
                             </option>
                         </select>

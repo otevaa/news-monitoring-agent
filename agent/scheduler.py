@@ -51,16 +51,40 @@ class CampaignScheduler:
             self.logger.error(f"Error checking campaigns: {e}")
     
     def run_campaign(self, campaign):
-        """Run a single campaign"""
+        """Run a single campaign with AI enhancements"""
         try:
             # Fetch articles using the campaign keywords from multiple sources
             keywords = campaign['keywords']
             max_articles = campaign.get('max_articles', 25)
             
-            # Use multi-source fetcher (Google News + Reddit)
-            articles = fetch_articles_multi_source(keywords, max_items=max_articles)
+            # Check if AI features are enabled for this campaign
+            use_ai_filtering = campaign.get('ai_filtering_enabled', True)
+            relevance_threshold = campaign.get('relevance_threshold', 70)
+            
+            # Use multi-source fetcher with AI enhancements
+            articles = fetch_articles_multi_source(
+                keywords, 
+                max_items=max_articles,
+                use_ai_filtering=use_ai_filtering,
+                relevance_threshold=relevance_threshold
+            )
             
             if articles:
+                # Check for high-priority articles and send alerts
+                priority_articles = [a for a in articles if a.get('is_priority')]
+                if priority_articles:
+                    self.logger.info(f"🚨 Found {len(priority_articles)} high-priority articles for campaign '{campaign['name']}'")
+                    # TODO: Implement notification system for alerts
+                
+                # Log keyword suggestions if any
+                suggestions = [a for a in articles if a.get('is_suggestion')]
+                if suggestions:
+                    suggested_keywords = suggestions[0].get('suggested_keywords', [])
+                    self.logger.info(f"💡 AI suggests expanding keywords with: {', '.join(suggested_keywords[:3])}")
+                
+                # Filter out suggestion articles before saving to integrations
+                actual_articles = [a for a in articles if not a.get('is_suggestion')]
+                
                 # Send to configured integrations
                 integrations = campaign.get('integrations', [])
                 success_count = 0
@@ -74,7 +98,7 @@ class CampaignScheduler:
                             if spreadsheet_id:
                                 success = self.sheets_manager.save_articles_to_spreadsheet(
                                     spreadsheet_id,
-                                    articles,
+                                    actual_articles,  # Use filtered articles without suggestions
                                     campaign['name'],
                                     keywords
                                 )
@@ -109,7 +133,7 @@ class CampaignScheduler:
                             self.logger.warning("Google Sheets not connected - skipping Google Sheets integration")
                     elif integration == 'airtable':
                         # Keep existing airtable logic
-                        success = self.integration_manager.send_to_airtable(articles, campaign['name'])
+                        success = self.integration_manager.send_to_airtable(actual_articles, campaign['name'])
                         if success:
                             success_count += 1
                 

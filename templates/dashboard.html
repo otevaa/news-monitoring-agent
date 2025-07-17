@@ -31,11 +31,16 @@
                 </a>
                 
                 <nav class="nav">
-                    <a href="/" class="nav-link active">Dashboard</a>
-                    <a href="/campaigns" class="nav-link">Campagnes</a>
-                    <a href="/integrations" class="nav-link">Intégrations</a>
-                    <a href="/files" class="nav-link">Fichiers</a>
-                    <a href="/analytics" class="nav-link">Analytics</a>
+                    <div class="nav-links">
+                        <a href="/" class="nav-link active">Dashboard</a>
+                        <a href="/campaigns" class="nav-link">Campagnes</a>
+                        <a href="/integrations" class="nav-link">Intégrations</a>
+                        <a href="/files" class="nav-link">Fichiers</a>
+                        <a href="/analytics" class="nav-link">Analytics</a>
+                    </div>
+                    <button class="mobile-menu-btn" onclick="toggleMobileMenu()">
+                        <i data-feather="menu"></i>
+                    </button>
                 </nav>
                 
                 <div class="user-menu">
@@ -148,6 +153,15 @@
                             <i data-feather="plus"></i>
                             Créer une campagne
                         </a>
+                        
+                        <!-- Mobile Voice Command Section -->
+                        <div class="mobile-voice-section">
+                            <div class="mobile-voice-text">Ou utilisez la commande vocale</div>
+                            <button class="voice-command-btn" onclick="startVoiceCommand()" title="Commande vocale">
+                                <i data-feather="mic"></i>
+                                <span class="fallback-icon" style="display: none;">🎤</span>
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -475,8 +489,43 @@
     </main>
 
     <script>
-        // Initialize Feather icons
-        feather.replace();
+        // Initialize Feather icons when DOM is ready
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeFeatherIcons();
+        });
+        
+        // Also initialize immediately
+        initializeFeatherIcons();
+        
+        function initializeFeatherIcons() {
+            try {
+                feather.replace();
+                console.log('Feather icons initialized');
+                
+                // Check if icons loaded properly, if not show fallback
+                setTimeout(() => {
+                    const voiceBtn = document.querySelector('.voice-command-btn');
+                    const micIcon = voiceBtn.querySelector('[data-feather="mic"]');
+                    const fallbackIcon = voiceBtn.querySelector('.fallback-icon');
+                    
+                    if (micIcon && (micIcon.innerHTML === '' || micIcon.tagName === 'I')) {
+                        // Icon didn't load, show fallback
+                        micIcon.style.display = 'none';
+                        fallbackIcon.style.display = 'inline-block';
+                        console.log('Using fallback icon for voice command');
+                    }
+                }, 100);
+                
+            } catch (error) {
+                console.error('Failed to initialize Feather icons:', error);
+                // Show fallback icons
+                const fallbackIcons = document.querySelectorAll('.fallback-icon');
+                fallbackIcons.forEach(icon => {
+                    icon.style.display = 'inline-block';
+                    icon.previousElementSibling.style.display = 'none';
+                });
+            }
+        }
 
         // Campaign management functions
         function pauseCampaign(campaignId) {
@@ -777,6 +826,262 @@
             
             console.log('Auto-refresh initialized - updating every 30 seconds');
         });
+
+        // Mobile menu toggle
+        function toggleMobileMenu() {
+            const navLinks = document.querySelector('.nav-links');
+            navLinks.classList.toggle('active');
+        }
+
+        // Voice command functionality
+        let recognition;
+        let isListening = false;
+        let currentTranscript = '';
+
+        function startVoiceCommand() {
+            console.log('🎤 Voice command button clicked!');
+            
+            // Check for speech recognition support
+            if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+                alert('Votre navigateur ne supporte pas la reconnaissance vocale. Utilisez Chrome, Edge ou Safari.');
+                return;
+            }
+
+            const modal = document.getElementById('voiceModal');
+            const status = document.getElementById('voiceStatus');
+            const transcript = document.getElementById('voiceTranscript');
+            const btn = document.querySelector('.voice-command-btn');
+            const executeBtn = document.getElementById('executeBtn');
+
+            if (!modal) {
+                console.error('❌ Modal not found!');
+                alert('Erreur: Modal introuvable');
+                return;
+            }
+
+            console.log('✅ Modal elements found:', { modal, status, transcript, btn, executeBtn });
+
+            // Show modal and reset state
+            modal.style.display = 'flex';
+            status.textContent = 'Préparation de l\'écoute...';
+            transcript.textContent = '';
+            executeBtn.style.display = 'none';
+            currentTranscript = '';
+
+            // Initialize speech recognition directly
+            try {
+                recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+                recognition.lang = 'fr-FR';
+                recognition.continuous = false;
+                recognition.interimResults = true;
+                recognition.maxAlternatives = 5;
+                
+                console.log('✅ Speech recognition initialized');
+                
+                // Add the listening class when starting
+                btn.classList.add('listening');
+            
+                recognition.onstart = function() {
+                    console.log('✅ Speech recognition started');
+                    status.textContent = 'Écoute en cours... Parlez maintenant !';
+                    isListening = true;
+                };
+
+                recognition.onresult = function(event) {
+                    console.log('✅ Speech recognition result received:', event);
+                    let interimTranscript = '';
+                    let finalTranscript = '';
+
+                    for (let i = event.resultIndex; i < event.results.length; i++) {
+                        const result = event.results[i];
+                        const resultText = result[0].transcript;
+                        
+                        console.log(`📝 Result ${i}: "${resultText}" (final: ${result.isFinal})`);
+                        
+                        if (result.isFinal) {
+                            finalTranscript += resultText;
+                        } else {
+                            interimTranscript += resultText;
+                        }
+                    }
+
+                    const displayTranscript = finalTranscript || interimTranscript;
+                    console.log('📝 Updating transcript display:', displayTranscript);
+                    
+                    // Update the transcript display
+                    transcript.textContent = displayTranscript;
+                    
+                    if (interimTranscript) {
+                        status.textContent = 'En cours de reconnaissance...';
+                    }
+
+                    if (finalTranscript) {
+                        currentTranscript = finalTranscript.trim();
+                        status.textContent = 'Commande reçue ! Vous pouvez l\'exécuter.';
+                        executeBtn.style.display = 'inline-block';
+                        btn.classList.remove('listening');
+                        console.log('✅ Final transcript:', currentTranscript);
+                    }
+                };
+
+                recognition.onerror = function(event) {
+                    console.error('❌ Speech recognition error:', event.error);
+                    let errorMessage = '';
+                    switch(event.error) {
+                        case 'no-speech':
+                            errorMessage = 'Aucune parole détectée. Parlez plus fort et réessayez.';
+                            break;
+                        case 'audio-capture':
+                            errorMessage = 'Microphone non disponible. Vérifiez vos paramètres.';
+                            break;
+                        case 'not-allowed':
+                            errorMessage = 'Permission microphone refusée. Autorisez le microphone et réessayez.';
+                            break;
+                        case 'network':
+                            errorMessage = 'Erreur réseau. Vérifiez votre connexion.';
+                            break;
+                        case 'aborted':
+                            errorMessage = 'Reconnaissance interrompue.';
+                            break;
+                        default:
+                            errorMessage = `Erreur: ${event.error}. Réessayez.`;
+                    }
+                    status.textContent = errorMessage;
+                    btn.classList.remove('listening');
+                    isListening = false;
+                };
+
+                recognition.onend = function() {
+                    console.log('✅ Speech recognition ended');
+                    btn.classList.remove('listening');
+                    isListening = false;
+                    
+                    if (!currentTranscript) {
+                        status.textContent = 'Aucune commande détectée. Parlez plus clairement et réessayez.';
+                        setTimeout(() => {
+                            status.textContent = 'Essayez: "Créer une campagne" ou "Nouvelle campagne"';
+                        }, 2000);
+                    }
+                };
+
+                // Start recognition
+                console.log('🎤 Starting speech recognition...');
+                recognition.start();
+                
+            } catch (error) {
+                console.error('❌ Error starting speech recognition:', error);
+                status.textContent = 'Erreur lors de l\'initialisation. Vérifiez vos paramètres de microphone.';
+                btn.classList.remove('listening');
+                alert('Erreur: ' + error.message);
+            }
+        }
+
+        function stopVoiceCommand() {
+            if (recognition) {
+                recognition.stop();
+            }
+            document.getElementById('voiceModal').style.display = 'none';
+            document.querySelector('.voice-command-btn').classList.remove('listening');
+            isListening = false;
+            currentTranscript = '';
+        }
+
+        function executeVoiceCommand() {
+            if (!currentTranscript) return;
+
+            const command = currentTranscript.toLowerCase().trim();
+            console.log('Executing command:', command);
+
+            // Parse voice commands for campaign creation
+            if (command.includes('créer') || command.includes('creer') || command.includes('nouvelle campagne') || command.includes('campagne')) {
+                parseCreateCampaignCommand(command);
+            } else if (command.includes('dashboard') || command.includes('tableau de bord') || command.includes('accueil')) {
+                window.location.href = '/';
+            } else if (command.includes('campagnes') || command.includes('liste')) {
+                window.location.href = '/campaigns';
+            } else if (command.includes('intégrations') || command.includes('integrations')) {
+                window.location.href = '/integrations';
+            } else if (command.includes('fichiers') || command.includes('files')) {
+                window.location.href = '/files';
+            } else if (command.includes('profil') || command.includes('profile')) {
+                window.location.href = '/profile';
+            } else {
+                // If no specific command recognized, try to create a campaign anyway
+                if (command.length > 3) {
+                    alert(`Commande "${command}" interprétée comme création de campagne. Redirection...`);
+                    parseCreateCampaignCommand(command);
+                } else {
+                    alert('Commande non reconnue. Essayez: "Créer une nouvelle campagne", "Aller aux campagnes", "Dashboard", etc.');
+                }
+            }
+
+            stopVoiceCommand();
+        }
+
+        function parseCreateCampaignCommand(command) {
+            // Extract campaign details from voice command
+            let campaignName = '';
+            let keywords = '';
+            let frequency = 'daily'; // default daily
+
+            // Simple parsing - can be enhanced
+            if (command.includes('pour') || command.includes('sur')) {
+                const parts = command.split(/pour|sur/);
+                if (parts.length > 1) {
+                    keywords = parts[1].trim().replace(/[.,!?]/g, '');
+                    campaignName = `Campagne ${keywords}`;
+                }
+            } else {
+                // If no specific keywords, use the whole command as keywords
+                keywords = command.replace(/créer|creer|nouvelle|campagne|une|de|veille/gi, '').trim();
+                campaignName = `Campagne vocale ${new Date().getTime()}`;
+            }
+
+            if (command.includes('horaire') || command.includes('heure') || command.includes('toutes les heures')) {
+                frequency = 'hourly';
+            } else if (command.includes('quotidien') || command.includes('jour') || command.includes('quotidienne')) {
+                frequency = 'daily';
+            } else if (command.includes('hebdomadaire') || command.includes('semaine')) {
+                frequency = 'weekly';
+            }
+
+            // Redirect to create campaign with pre-filled data
+            const params = new URLSearchParams({
+                name: campaignName || 'Nouvelle campagne vocale',
+                keywords: keywords || 'actualités',
+                frequency: frequency
+            });
+            
+            window.location.href = `/campaigns/create?${params.toString()}`;
+        }
+
+        // Close modal when clicking outside
+        window.onclick = function(event) {
+            const modal = document.getElementById('voiceModal');
+            if (event.target == modal) {
+                stopVoiceCommand();
+            }
+        }
     </script>
-</body>
-</html>
+
+    <!-- Voice Command Feature -->
+    <div class="voice-command-container">
+        <button class="voice-command-btn" onclick="startVoiceCommand()" title="Commande vocale">
+            <i data-feather="mic"></i>
+            <span class="fallback-icon" style="display: none;">🎤</span>
+        </button>
+    </div>
+
+    <!-- Voice Command Modal -->
+    <div class="voice-modal" id="voiceModal">
+        <div class="voice-modal-content">
+            <h3>Commande vocale</h3>
+            <div class="voice-status" id="voiceStatus">Cliquez pour commencer</div>
+            <div class="voice-transcript" id="voiceTranscript">En attente...</div>
+            <div style="margin-top: 1rem;">
+                <button class="btn btn-secondary" onclick="stopVoiceCommand()">Arrêter</button>
+                <button class="btn btn-primary" onclick="executeVoiceCommand()" id="executeBtn" style="display: none;">Exécuter</button>
+            </div>
+        </div>
+    </div>
+

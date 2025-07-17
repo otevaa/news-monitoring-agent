@@ -3,20 +3,24 @@ import feedparser
 from datetime import datetime
 import requests
 import re
+from .ai_enhancer import ai_enhancer
 
 def get_real_url(google_news_url):
     """Extract the real URL from Google News redirect URL (simple approach)"""
     # Just return the URL as-is since we're keeping it simple
     return google_news_url
 
-def fetch_articles_multi_source(keywords, max_items=25):
+def fetch_articles_multi_source(keywords, max_items=25, use_ai_filtering=True, relevance_threshold=70):
     """
     Fetch articles from multiple sources: Google News, Reddit, Facebook, X/Twitter, LinkedIn
+    With AI enhancement features
     """
     all_articles = []
     items_per_source = max(1, max_items // 5)  # Divide among 5 sources
     
     print(f"Fetching articles for keywords: {keywords}")
+    if use_ai_filtering:
+        print(f"AI filtering enabled with relevance threshold: {relevance_threshold}")
     
     # 1. Google News RSS (existing)
     print("Fetching from Google News...")
@@ -48,10 +52,68 @@ def fetch_articles_multi_source(keywords, max_items=25):
     all_articles.extend(linkedin_articles)
     print(f"LinkedIn: {len(linkedin_articles)} articles")
     
+    print(f"Total articles collected before AI processing: {len(all_articles)}")
+    
+    # AI Enhancement: Filter by relevance score
+    if use_ai_filtering and all_articles:
+        print("Applying AI relevance filtering...")
+        try:
+            filtered_articles, filter_stats = ai_enhancer.filter_articles_by_relevance(
+                all_articles, keywords, relevance_threshold
+            )
+            all_articles = filtered_articles
+            print(f"AI filtering complete: {len(all_articles)} articles remaining")
+        except Exception as e:
+            print(f"AI filtering failed, using all articles: {e}")
+    
+    # AI Enhancement: Detect high-priority articles
+    if all_articles:
+        print("Detecting high-priority articles...")
+        try:
+            priority_articles = ai_enhancer.detect_high_priority_articles(all_articles, keywords)
+            if priority_articles:
+                print(f"Found {len(priority_articles)} high-priority articles")
+                # Mark priority articles
+                priority_urls = {article['url'] for article in priority_articles}
+                for article in all_articles:
+                    if article.get('url') in priority_urls:
+                        article['is_priority'] = True
+        except Exception as e:
+            print(f"Priority detection failed: {e}")
+    
+    # AI Enhancement: Suggest keyword expansion
+    if all_articles and len(all_articles) >= 5:
+        print("Generating keyword expansion suggestions...")
+        try:
+            expanded_keywords = ai_enhancer.expand_keywords(keywords, all_articles)
+            if expanded_keywords:
+                print(f"Suggested additional keywords: {', '.join(expanded_keywords)}")
+                # Store suggestions in a special article for display
+                suggestion_article = {
+                    'titre': f"💡 Mots-clés suggérés: {', '.join(expanded_keywords[:3])}{'...' if len(expanded_keywords) > 3 else ''}",
+                    'url': '#keyword-suggestions',
+                    'source': 'AI Suggestions',
+                    'resume': f"L'IA suggère d'ajouter ces mots-clés: {', '.join(expanded_keywords)}",
+                    'date': datetime.now().isoformat(),
+                    'is_suggestion': True,
+                    'suggested_keywords': expanded_keywords
+                }
+                all_articles.insert(0, suggestion_article)  # Add at top
+        except Exception as e:
+            print(f"Keyword expansion failed: {e}")
+    
     # Sort by date (newest first) and limit total results
-    all_articles.sort(key=lambda x: x.get('date', ''), reverse=True)
-    print(f"Total articles collected: {len(all_articles)}")
-    return all_articles[:max_items]
+    # Keep suggestions at top, sort the rest
+    suggestions = [a for a in all_articles if a.get('is_suggestion')]
+    regular_articles = [a for a in all_articles if not a.get('is_suggestion')]
+    
+    regular_articles.sort(key=lambda x: x.get('date', ''), reverse=True)
+    
+    # Combine suggestions + regular articles
+    final_articles = suggestions + regular_articles
+    
+    print(f"Total articles after AI processing: {len(final_articles)}")
+    return final_articles[:max_items]
 
 def fetch_articles_rss(keywords, max_items=25):
     """Fetch articles from Google News RSS (existing function)"""

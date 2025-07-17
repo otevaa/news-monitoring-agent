@@ -5,10 +5,17 @@ from agent.google_sheets_manager import GoogleSheetsManager
 from agent.campaign_manager import CampaignManager
 from agent.integrations import IntegrationManager
 from agent.scheduler import campaign_scheduler
+from agent.user_profile_manager import UserProfileManager
+from agent.multi_ai_enhancer import create_ai_enhancer
 import json
 from datetime import datetime
 import uuid
 import atexit
+import os
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 app = Flask(__name__)
 app.secret_key = "ta-cle-ultra-secrete"
@@ -17,6 +24,7 @@ app.secret_key = "ta-cle-ultra-secrete"
 campaign_manager = CampaignManager()
 integration_manager = IntegrationManager()
 sheets_manager = GoogleSheetsManager()
+user_profile_manager = UserProfileManager()
 
 # Start the campaign scheduler
 campaign_scheduler.start()
@@ -136,7 +144,13 @@ def campaigns():
 
 @app.route("/campaigns/create")
 def create_campaign():
-    return render_template("campaign_form.html")
+    # Get pre-filled parameters from voice commands
+    prefill_data = {
+        'name': request.args.get('name', ''),
+        'keywords': request.args.get('keywords', ''),
+        'frequency': request.args.get('frequency', '1440')
+    }
+    return render_template("campaign_form.html", prefill=prefill_data)
 
 @app.route("/campaigns/<campaign_id>/edit")
 def edit_campaign(campaign_id):
@@ -146,13 +160,22 @@ def edit_campaign(campaign_id):
 @app.route("/campaigns/create", methods=["POST"])
 @app.route("/campaigns/<campaign_id>/edit", methods=["POST"])
 def save_campaign(campaign_id=None):
+    # Get user AI preferences
+    user_profile = user_profile_manager.get_user_profile(user_id='default')
+    
     data = {
         'name': request.form.get('name'),
         'keywords': request.form.get('keywords'),
         'frequency': request.form.get('frequency'),
         'integrations': request.form.getlist('integrations'),
         'max_articles': int(request.form.get('max_articles', 25)),
-        'description': request.form.get('description', '')
+        'description': request.form.get('description', ''),
+        # AI Enhancement Options - now using defaults from user profile
+        'ai_filtering_enabled': True,  # Always enabled
+        'relevance_threshold': user_profile.get('relevance_threshold', 70),
+        'keyword_expansion_enabled': True,  # Always enabled
+        'priority_alerts_enabled': True,  # Always enabled
+        'ai_model': user_profile.get('ai_model', 'openai-gpt3.5')  # Get from user profile
     }
     
     if campaign_id:
@@ -281,6 +304,69 @@ def profile():
         'integrations_count': integration_manager.get_active_integrations_count()
     }
     return render_template("profile.html", user=user_data, stats=stats)
+
+@app.route("/profile/ai-settings")
+def profile_ai_settings():
+    user_profile = user_profile_manager.get_user_profile(user_id='default')
+    return render_template("profile_ai_settings.html", profile=user_profile)
+
+@app.route("/profile/ai-settings", methods=["POST"])
+def save_ai_settings():
+    settings = {
+        'ai_model': request.form.get('ai_model', 'openai-gpt3.5'),
+        'relevance_threshold': int(request.form.get('relevance_threshold', 70)),
+        'ai_filtering_enabled': 'ai_filtering_enabled' in request.form,
+        'keyword_expansion_enabled': 'keyword_expansion_enabled' in request.form,
+        'priority_alerts_enabled': 'priority_alerts_enabled' in request.form
+    }
+    
+    success = user_profile_manager.update_user_profile(user_id='default', updates=settings)
+    
+    if request.content_type == 'application/json':
+        return jsonify({'success': success})
+    else:
+        if success:
+            flash('Paramètres IA sauvegardés avec succès!', 'success')
+        else:
+            flash('Erreur lors de la sauvegarde des paramètres IA.', 'error')
+        return redirect(url_for('profile_ai_settings'))
+
+@app.route("/api/test-ai-model", methods=["POST"])
+def test_ai_model():
+    try:
+        data = request.get_json()
+        model = data.get('model', 'openai-gpt3.5')
+        
+        # Create AI enhancer with specified model
+        ai_enhancer = create_ai_enhancer(model=model)
+        
+        # Test with a sample article
+        test_article = {
+            'titre': 'Test d\'intelligence artificielle pour l\'analyse d\'articles',
+            'resume': 'Article test pour vérifier le fonctionnement du modèle IA'
+        }
+        
+        import time
+        start_time = time.time()
+        
+        # Test scoring
+        score = ai_enhancer.score_article_relevance(test_article, 'intelligence artificielle, test')
+        
+        end_time = time.time()
+        
+        return jsonify({
+            'success': True,
+            'model': model,
+            'score': score,
+            'time': round((end_time - start_time) * 1000, 2),
+            'provider': ai_enhancer.provider
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        })
 
 # API Routes
 @app.route("/api/preview", methods=["POST"])

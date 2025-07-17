@@ -146,7 +146,7 @@ class GoogleSheetsManager:
             
             # Setup headers (without Keywords column)
             headers = [
-                ['Date', 'Source', 'Titre', 'URL', 'Résumé', 'Campagne']
+                ['Date', 'Source', 'Titre', 'URL', 'Campagne']
             ]
             
             sheets_service.spreadsheets().values().update(
@@ -329,7 +329,11 @@ class GoogleSheetsManager:
                 print(f"No new unique articles to save for campaign '{campaign_name}'")
                 return True
             
+            # Sort articles by date: OLDEST FIRST (chronological order for better timeline)
+            unique_articles.sort(key=lambda x: x.get('date', ''), reverse=False)
+            
             print(f"Saving {len(unique_articles)} new unique articles (filtered from {len(filtered_articles)} total)")
+            print(f"Articles sorted chronologically (oldest first) for better timeline view")
             
             # Prepare values for unique articles only
             values = []
@@ -350,7 +354,6 @@ class GoogleSheetsManager:
                     article.get('source', ''),
                     article.get('titre', ''),
                     clean_url,  # Just the plain URL - Google Sheets will make it clickable
-                    article.get('resume', ''),
                     campaign_name
                 ])
             

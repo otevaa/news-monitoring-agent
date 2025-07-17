@@ -10,3 +10,7 @@ requests
 python-dotenv
 schedule
 APScheduler
+openai
+transformers
+torch
+anthropic
