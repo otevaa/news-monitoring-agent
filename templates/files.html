@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestion des fichiers - News Monitor</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://unpkg.com/feather-icons"></script>
+    <style>
+        .file-card {
+            background: white;
+            border-radius: var(--radius-lg);
+            padding: 1.5rem;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            border: 1px solid var(--neutral-200);
+            transition: all 0.2s ease;
+            position: relative;
+        }
+        
+        .file-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+        }
+        
+        .file-card.campaign-sheet {
+            border-left: 4px solid var(--primary-blue);
+        }
+        
+        .file-card.standalone-sheet {
+            border-left: 4px solid var(--neutral-400);
+        }
+        
+        .file-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            margin-bottom: 1rem;
+        }
+        
+        .file-info {
+            flex: 1;
+        }
+        
+        .file-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: var(--neutral-800);
+            margin: 0 0 0.5rem 0;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .file-meta {
+            font-size: 0.875rem;
+            color: var(--neutral-600);
+            margin-bottom: 0.25rem;
+        }
+        
+        .campaign-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+            background: var(--primary-blue);
+            color: white;
+            padding: 0.25rem 0.75rem;
+            border-radius: var(--radius-full);
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+        
+        .standalone-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+            background: var(--neutral-500);
+            color: white;
+            padding: 0.25rem 0.75rem;
+            border-radius: var(--radius-full);
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+        
+        .file-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+        
+        .action-btn {
+            padding: 0.5rem;
+            border: 1px solid var(--neutral-300);
+            background: white;
+            border-radius: var(--radius-md);
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .action-btn:hover {
+            background: var(--neutral-50);
+        }
+        
+        .action-btn.delete {
+            border-color: var(--danger-red);
+            color: var(--danger-red);
+        }
+        
+        .action-btn.delete:hover {
+            background: var(--danger-red);
+            color: white;
+        }
+        
+        .action-btn.open {
+            border-color: var(--primary-blue);
+            color: var(--primary-blue);
+        }
+        
+        .action-btn.open:hover {
+            background: var(--primary-blue);
+            color: white;
+        }
+        
+        .files-grid {
+            display: grid;
+            gap: 1.5rem;
+            grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+        }
+        
+        .stats-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+        
+        .stat-card {
+            background: white;
+            border-radius: var(--radius-lg);
+            padding: 1.5rem;
+            text-align: center;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            border: 1px solid var(--neutral-200);
+        }
+        
+        .stat-number {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+        
+        .stat-label {
+            font-size: 0.875rem;
+            color: var(--neutral-600);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 3rem 1rem;
+            color: var(--neutral-600);
+        }
+        
+        .empty-state i {
+            width: 64px;
+            height: 64px;
+            margin-bottom: 1rem;
+            opacity: 0.5;
+        }
+        
+        .delete-confirmation {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+        
+        .delete-modal {
+            background: white;
+            border-radius: var(--radius-lg);
+            padding: 2rem;
+            max-width: 400px;
+            width: 90%;
+            text-align: center;
+        }
+        
+        .delete-modal h3 {
+            margin: 0 0 1rem 0;
+            color: var(--danger-red);
+        }
+        
+        .delete-modal p {
+            margin: 0 0 1.5rem 0;
+            color: var(--neutral-600);
+        }
+        
+        .delete-actions {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <nav style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 2rem;">
+            <div style="display: flex; align-items: center; gap: 1rem;">
+                <a href="/" class="btn btn-ghost" style="padding: 0.5rem;">
+                    <i data-feather="arrow-left"></i>
+                </a>
+                <h1 style="margin: 0;">Gestion des fichiers</h1>
+            </div>
+            
+            <div style="display: flex; align-items: center; gap: 1rem;">
+                <a href="/campaigns" class="btn btn-outline">
+                    <i data-feather="target"></i>
+                    Campagnes
+                </a>
+                <a href="/campaigns/create" class="btn btn-primary">
+                    <i data-feather="plus"></i>
+                    Nouvelle campagne
+                </a>
+            </div>
+        </nav>
+
+        {% if error %}
+        <div class="alert alert-danger">
+            <i data-feather="alert-circle"></i>
+            {{ error }}
+        </div>
+        {% endif %}
+
+        <!-- Statistics -->
+        <div class="stats-cards">
+            <div class="stat-card">
+                <div class="stat-number" style="color: var(--primary-blue);">
+                    {{ spreadsheets|length }}
+                </div>
+                <div class="stat-label">Feuilles Google Sheets</div>
+            </div>
+            
+            <div class="stat-card">
+                <div class="stat-number" style="color: var(--accent-green);">
+                    {{ spreadsheets|selectattr('is_campaign_sheet')|list|length }}
+                </div>
+                <div class="stat-label">Feuilles de campagne</div>
+            </div>
+            
+            <div class="stat-card">
+                <div class="stat-number" style="color: var(--accent-orange);">
+                    {{ campaign_count or 0 }}
+                </div>
+                <div class="stat-label">Campagnes actives</div>
+            </div>
+            
+            <div class="stat-card">
+                <div class="stat-number" style="color: var(--neutral-600);">
+                    {{ (spreadsheets|list|length) - (spreadsheets|selectattr('is_campaign_sheet')|list|length) }}
+                </div>
+                <div class="stat-label">Feuilles indépendantes</div>
+            </div>
+        </div>
+
+        <!-- Files Grid -->
+        {% if spreadsheets %}
+        <div class="files-grid">
+            {% for sheet in spreadsheets %}
+            <div class="file-card {% if sheet.is_campaign_sheet %}campaign-sheet{% else %}standalone-sheet{% endif %}" data-file-id="{{ sheet.id }}">
+                <div class="file-header">
+                    <div class="file-info">
+                        <h3 class="file-title">
+                            <i data-feather="grid"></i>
+                            {{ sheet.name }}
+                        </h3>
+                        
+                        {% if sheet.is_campaign_sheet %}
+                        <div class="campaign-badge">
+                            <i data-feather="target" style="width: 12px; height: 12px;"></i>
+                            {{ sheet.campaign_name }}
+                        </div>
+                        {% else %}
+                        <div class="standalone-badge">
+                            <i data-feather="file" style="width: 12px; height: 12px;"></i>
+                            Feuille indépendante
+                        </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="file-actions">
+                        <button class="action-btn open" onclick="window.open('{{ sheet.url }}', '_blank')" title="Ouvrir dans Google Sheets">
+                            <i data-feather="external-link" style="width: 16px; height: 16px;"></i>
+                        </button>
+                        
+                        {% if not sheet.is_campaign_sheet %}
+                        <button class="action-btn delete" onclick="confirmDelete('{{ sheet.id }}', '{{ sheet.name }}')" title="Supprimer">
+                            <i data-feather="trash-2" style="width: 16px; height: 16px;"></i>
+                        </button>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <div class="file-meta">
+                    <strong>Créé :</strong> 
+                    {% if sheet.created_time %}
+                        {{ sheet.created_time[:10] }} à {{ sheet.created_time[11:16] }}
+                    {% else %}
+                        Date inconnue
+                    {% endif %}
+                </div>
+                
+                <div class="file-meta">
+                    <strong>Modifié :</strong> 
+                    {% if sheet.modified_time %}
+                        {{ sheet.modified_time[:10] }} à {{ sheet.modified_time[11:16] }}
+                    {% else %}
+                        Date inconnue
+                    {% endif %}
+                </div>
+                
+                {% if sheet.is_campaign_sheet %}
+                <div class="file-meta" style="color: var(--accent-green); font-weight: 500;">
+                    <i data-feather="shield" style="width: 14px; height: 14px;"></i>
+                    Protégé par la campagne
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        
+        {% else %}
+        <div class="empty-state">
+            <i data-feather="folder"></i>
+            <h3>Aucun fichier trouvé</h3>
+            <p>Créez une campagne avec intégration Google Sheets pour commencer.</p>
+            <a href="/campaigns/create" class="btn btn-primary">
+                <i data-feather="plus"></i>
+                Créer une campagne
+            </a>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Delete Confirmation Modal -->
+    <div id="deleteModal" class="delete-confirmation" style="display: none;">
+        <div class="delete-modal">
+            <h3>Confirmer la suppression</h3>
+            <p>Êtes-vous sûr de vouloir supprimer la feuille "<span id="fileName"></span>" ?</p>
+            <p style="font-size: 0.875rem; color: var(--danger-red);">Cette action est irréversible.</p>
+            
+            <div class="delete-actions">
+                <button class="btn btn-outline" onclick="cancelDelete()">Annuler</button>
+                <button class="btn btn-danger" onclick="deleteFile()">Supprimer</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let fileToDelete = null;
+
+        function confirmDelete(fileId, fileName) {
+            fileToDelete = fileId;
+            document.getElementById('fileName').textContent = fileName;
+            document.getElementById('deleteModal').style.display = 'flex';
+        }
+
+        function cancelDelete() {
+            fileToDelete = null;
+            document.getElementById('deleteModal').style.display = 'none';
+        }
+
+        async function deleteFile() {
+            if (!fileToDelete) return;
+
+            try {
+                const response = await fetch(`/api/files/${fileToDelete}/delete`, {
+                    method: 'DELETE'
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    // Remove file card from DOM
+                    const fileCard = document.querySelector(`[data-file-id="${fileToDelete}"]`);
+                    if (fileCard) {
+                        fileCard.remove();
+                    }
+
+                    // Update statistics
+                    location.reload();
+                } else {
+                    alert('Erreur lors de la suppression : ' + (result.error || 'Erreur inconnue'));
+                }
+            } catch (error) {
+                console.error('Error deleting file:', error);
+                alert('Erreur lors de la suppression du fichier');
+            }
+
+            cancelDelete();
+        }
+
+        // Initialize Feather icons
+        feather.replace();
+    </script>
+</body>
+</html>

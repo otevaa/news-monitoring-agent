@@ -4,6 +4,7 @@ from datetime import datetime
 import logging
 from agent.campaign_manager import CampaignManager
 from agent.integrations import IntegrationManager
+from agent.google_sheets_manager import GoogleSheetsManager
 from agent.fetch_rss import fetch_articles_rss
 
 class CampaignScheduler:
@@ -11,6 +12,7 @@ class CampaignScheduler:
         self.scheduler = BackgroundScheduler()
         self.campaign_manager = CampaignManager()
         self.integration_manager = IntegrationManager()
+        self.sheets_manager = GoogleSheetsManager()
         self.logger = logging.getLogger(__name__)
         
         # Set up logging
@@ -59,15 +61,36 @@ class CampaignScheduler:
             if articles:
                 # Send to configured integrations
                 integrations = campaign.get('integrations', [])
-                if integrations:
-                    results = self.integration_manager.send_articles(
-                        articles, 
-                        integrations, 
-                        campaign['name']
-                    )
-                    
-                    success_count = sum(1 for success in results.values() if success)
-                    self.logger.info(f"Campaign '{campaign['name']}': {len(articles)} articles sent to {success_count}/{len(integrations)} integrations")
+                success_count = 0
+                
+                for integration in integrations:
+                    if integration == 'google_sheets':
+                        # Use GoogleSheetsManager to save articles
+                        if self.sheets_manager.is_google_sheets_connected():
+                            spreadsheet_id = campaign.get('spreadsheet_id')
+                            if spreadsheet_id:
+                                success = self.sheets_manager.save_articles_to_spreadsheet(
+                                    spreadsheet_id,
+                                    articles,
+                                    campaign['name'],
+                                    keywords
+                                )
+                                if success:
+                                    success_count += 1
+                                    self.logger.info(f"Successfully saved {len(articles)} articles to Google Sheets for campaign '{campaign['name']}'")
+                                else:
+                                    self.logger.error(f"Failed to save articles to Google Sheets for campaign '{campaign['name']}'")
+                            else:
+                                self.logger.warning(f"Campaign '{campaign['name']}' has Google Sheets integration but no spreadsheet_id")
+                        else:
+                            self.logger.warning("Google Sheets not connected - skipping Google Sheets integration")
+                    elif integration == 'airtable':
+                        # Keep existing airtable logic
+                        success = self.integration_manager.send_to_airtable(articles, campaign['name'])
+                        if success:
+                            success_count += 1
+                
+                self.logger.info(f"Campaign '{campaign['name']}': {len(articles)} articles sent to {success_count}/{len(integrations)} integrations")
                 
                 # Update campaign statistics
                 self.campaign_manager.update_campaign_stats(
@@ -81,6 +104,8 @@ class CampaignScheduler:
                 
         except Exception as e:
             self.logger.error(f"Error running campaign '{campaign['name']}': {e}")
+            import traceback
+            traceback.print_exc()
     
     def run_campaign_now(self, campaign_id: str):
         """Manually trigger a campaign run"""

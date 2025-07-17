@@ -6,6 +6,7 @@ venv/
 # Credentials
 client_secret.json
 google-credentials.json
+user_credentials.json
 
 # OS
 .DS_Store

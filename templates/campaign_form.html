@@ -132,16 +132,17 @@
                             Destination des résultats
                         </label>
                         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
-                            <label class="integration-card" style="cursor: pointer;">
+                            <label class="integration-card" style="cursor: pointer;" onclick="toggleGoogleSheetsOptions()">
                                 <input 
                                     type="checkbox" 
                                     name="integrations" 
                                     value="google_sheets" 
+                                    id="google_sheets_checkbox"
                                     style="display: none;"
                                     {% if campaign and 'google_sheets' in campaign.integrations %}checked{% endif %}
                                 />
                                 <div class="integration-icon" style="background: #4285f4; color: white;">
-                                    <i data-feather="file-text"></i>
+                                    <i data-feather="grid"></i>
                                 </div>
                                 <h4>Google Sheets</h4>
                                 <p style="font-size: 0.875rem; color: var(--neutral-500);">
@@ -169,6 +170,29 @@
                         <small style="color: var(--neutral-500); font-size: 0.875rem;">
                             Sélectionnez où vous souhaitez envoyer automatiquement les articles trouvés
                         </small>
+                    </div>
+
+                    <!-- Google Sheets Options -->
+                    <div id="google_sheets_options" class="form-group" style="display: {% if campaign and 'google_sheets' in campaign.integrations %}block{% else %}none{% endif %};">
+                        <label class="form-label">
+                            <i data-feather="grid"></i>
+                            Options Google Sheets
+                        </label>
+                        <div class="radio-group">
+                            <label>
+                                <input type="radio" name="spreadsheet_choice" value="new" checked>
+                                Créer une nouvelle feuille de calcul
+                            </label>
+                            <label>
+                                <input type="radio" name="spreadsheet_choice" value="existing">
+                                Utiliser une feuille existante
+                            </label>
+                        </div>
+                        <div id="existing_spreadsheet_select" style="display: none; margin-top: 1rem;">
+                            <select name="spreadsheet_id" class="form-select">
+                                <option value="">Chargement des feuilles...</option>
+                            </select>
+                        </div>
                     </div>
 
                     <div class="form-group">
@@ -245,13 +269,70 @@
         document.querySelectorAll('.integration-card').forEach(card => {
             const checkbox = card.querySelector('input[type="checkbox"]');
             
-            card.addEventListener('click', () => {
+            card.addEventListener('click', (e) => {
+                e.preventDefault();
                 checkbox.checked = !checkbox.checked;
                 card.classList.toggle('active', checkbox.checked);
+                
+                // Handle Google Sheets options
+                if (checkbox.value === 'google_sheets') {
+                    toggleGoogleSheetsOptions();
+                }
             });
             
             // Set initial state
             card.classList.toggle('active', checkbox.checked);
+        });
+        
+        // Google Sheets options handling
+        function toggleGoogleSheetsOptions() {
+            const checkbox = document.getElementById('google_sheets_checkbox');
+            const options = document.getElementById('google_sheets_options');
+            
+            if (checkbox.checked) {
+                options.style.display = 'block';
+                loadSpreadsheets();
+            } else {
+                options.style.display = 'none';
+            }
+        }
+        
+        // Load existing spreadsheets
+        function loadSpreadsheets() {
+            fetch('/api/spreadsheets/list')
+                .then(response => response.json())
+                .then(data => {
+                    const select = document.querySelector('#existing_spreadsheet_select select');
+                    select.innerHTML = '<option value="">Sélectionnez une feuille</option>';
+                    
+                    if (data.spreadsheets && data.spreadsheets.length > 0) {
+                        data.spreadsheets.forEach(sheet => {
+                            const option = document.createElement('option');
+                            option.value = sheet.id;
+                            option.textContent = sheet.name;
+                            select.appendChild(option);
+                        });
+                    } else {
+                        select.innerHTML = '<option value="">Aucune feuille disponible</option>';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading spreadsheets:', error);
+                    const select = document.querySelector('#existing_spreadsheet_select select');
+                    select.innerHTML = '<option value="">Erreur de chargement</option>';
+                });
+        }
+        
+        // Handle spreadsheet choice radio buttons
+        document.querySelectorAll('input[name="spreadsheet_choice"]').forEach(radio => {
+            radio.addEventListener('change', function() {
+                const existingSelect = document.getElementById('existing_spreadsheet_select');
+                if (this.value === 'existing') {
+                    existingSelect.style.display = 'block';
+                } else {
+                    existingSelect.style.display = 'none';
+                }
+            });
         });
 
         // Keywords input validation and preview

@@ -10,7 +10,28 @@ from datetime import datetime
 class GoogleSheetsManager:
     def __init__(self):
         self.sheets_data_file = "google_sheets_data.json"
+        self.credentials_file = "user_credentials.json"
         self.sheets_data = self._load_sheets_data()
+    
+    def _get_credentials(self) -> Optional[Dict]:
+        """Get credentials from session or file"""
+        # First try to get from Flask session
+        try:
+            if "credentials" in session:
+                return session["credentials"]
+        except RuntimeError:
+            # We're outside of Flask application context (e.g., in scheduler)
+            pass
+        
+        # Fall back to reading from file
+        if os.path.exists(self.credentials_file):
+            try:
+                with open(self.credentials_file, 'r') as f:
+                    return json.load(f)
+            except Exception as e:
+                print(f"Error reading credentials from file: {e}")
+        
+        return None
     
     def _load_sheets_data(self) -> Dict:
         """Load Google Sheets data from JSON file"""
@@ -32,12 +53,12 @@ class GoogleSheetsManager:
     
     def get_sheets_service(self):
         """Get authenticated Google Sheets service"""
-        if "credentials" not in session:
-            print("No credentials in session")
+        creds_data = self._get_credentials()
+        if not creds_data:
+            print("No credentials available")
             return None
         
         try:
-            creds_data = session["credentials"]
             # Ensure all required fields are present for refresh
             required_fields = ['token', 'refresh_token', 'token_uri', 'client_id', 'client_secret']
             missing_fields = [field for field in required_fields if field not in creds_data]
@@ -54,12 +75,12 @@ class GoogleSheetsManager:
     
     def get_drive_service(self):
         """Get authenticated Google Drive service"""
-        if "credentials" not in session:
-            print("No credentials in session")
+        creds_data = self._get_credentials()
+        if not creds_data:
+            print("No credentials available")
             return None
         
         try:
-            creds_data = session["credentials"]
             # Ensure all required fields are present for refresh
             required_fields = ['token', 'refresh_token', 'token_uri', 'client_id', 'client_secret']
             missing_fields = [field for field in required_fields if field not in creds_data]
@@ -135,7 +156,7 @@ class GoogleSheetsManager:
                 body={'values': headers}
             ).execute()
             
-            # Format headers
+            # Format headers only
             format_body = {
                 'requests': [
                     {
@@ -157,6 +178,17 @@ class GoogleSheetsManager:
                                 }
                             },
                             'fields': 'userEnteredFormat(backgroundColor,textFormat)'
+                        }
+                    },
+                    {
+                        'updateSheetProperties': {
+                            'properties': {
+                                'sheetId': 0,
+                                'gridProperties': {
+                                    'frozenRowCount': 1
+                                }
+                            },
+                            'fields': 'gridProperties.frozenRowCount'
                         }
                     }
                 ]
@@ -245,9 +277,29 @@ class GoogleSheetsManager:
     
     def is_google_sheets_connected(self) -> bool:
         """Check if Google Sheets is connected with valid credentials"""
-        if "credentials" not in session:
+        creds_data = self._get_credentials()
+        if not creds_data:
             return False
         
-        creds_data = session["credentials"]
         required_fields = ['token', 'refresh_token', 'token_uri', 'client_id', 'client_secret']
         return all(field in creds_data for field in required_fields)
+    
+    def delete_spreadsheet(self, spreadsheet_id: str) -> bool:
+        """Delete a spreadsheet"""
+        drive_service = self.get_drive_service()
+        if not drive_service:
+            return False
+        
+        try:
+            drive_service.files().delete(fileId=spreadsheet_id).execute()
+            
+            # Remove from local data
+            if spreadsheet_id in self.sheets_data:
+                del self.sheets_data[spreadsheet_id]
+                self._save_sheets_data()
+            
+            return True
+            
+        except HttpError as e:
+            print(f"Error deleting spreadsheet: {e}")
+            return False

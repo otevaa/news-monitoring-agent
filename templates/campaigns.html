@@ -6,6 +6,13 @@
     <title>Gestion des Campagnes - NewsMonitor Pro</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <script src="https://unpkg.com/feather-icons"></script>
+    <style>
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+    </style>
 </head>
 <body>
     <header class="header">
@@ -22,6 +29,7 @@
                     <a href="/" class="nav-link">Dashboard</a>
                     <a href="/campaigns" class="nav-link active">Campagnes</a>
                     <a href="/integrations" class="nav-link">Intégrations</a>
+                    <a href="/files" class="nav-link">Fichiers</a>
                     <a href="/analytics" class="nav-link">Analytics</a>
                 </nav>
                 
@@ -52,11 +60,20 @@
                 </a>
             </div>
 
+            <!-- Auto-refresh Status -->
+            <div style="text-align: center; margin: 1rem 0; padding: 0.75rem; background: var(--neutral-50); border-radius: var(--radius-md); border: 1px solid var(--neutral-200);">
+                <div style="display: flex; align-items: center; justify-content: center; gap: 0.5rem; color: var(--neutral-600); font-size: 0.875rem;">
+                    <div style="width: 8px; height: 8px; background: var(--accent-green); border-radius: 50%; animation: pulse 2s infinite;"></div>
+                    <span>Mise à jour automatique active</span>
+                    <span id="refresh-indicator">Initialisation...</span>
+                </div>
+            </div>
+
             <!-- Campaigns Grid -->
             {% if campaigns %}
             <div style="display: grid; gap: 1.5rem;">
                 {% for campaign in campaigns %}
-                <div class="card">
+                <div class="card" data-campaign-id="{{ campaign.id }}">
                     <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 1rem;">
                         <div>
                             <h3 style="font-size: 1.5rem; font-weight: 600; margin-bottom: 0.5rem;">
@@ -113,9 +130,9 @@
                         </div>
                     </div>
                     
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 1rem; padding: 1rem; background: var(--neutral-50); border-radius: var(--radius-lg);">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 1rem; padding: 1rem; background: var(--neutral-50); border-radius: var(--radius-lg); margin-bottom: 1rem;">
                         <div style="text-align: center;">
-                            <div style="font-size: 1.5rem; font-weight: 700; color: var(--primary-blue);">
+                            <div class="campaign-total-articles" style="font-size: 1.5rem; font-weight: 700; color: var(--primary-blue); transition: color 0.3s ease;">
                                 {{ campaign.total_articles or 0 }}
                             </div>
                             <div style="font-size: 0.75rem; color: var(--neutral-600); text-transform: uppercase;">
@@ -123,7 +140,7 @@
                             </div>
                         </div>
                         <div style="text-align: center;">
-                            <div style="font-size: 1.5rem; font-weight: 700; color: var(--accent-green);">
+                            <div class="campaign-articles-today" style="font-size: 1.5rem; font-weight: 700; color: var(--accent-green); transition: color 0.3s ease;">
                                 {{ campaign.articles_today or 0 }}
                             </div>
                             <div style="font-size: 0.75rem; color: var(--neutral-600); text-transform: uppercase;">
@@ -131,14 +148,49 @@
                             </div>
                         </div>
                         <div style="text-align: center;">
-                            <div style="font-size: 1.5rem; font-weight: 700; color: var(--accent-orange);">
-                                {{ campaign.last_check or 'Jamais' }}
+                            <div class="campaign-last-check" style="font-size: 1rem; font-weight: 700; color: var(--accent-orange);">
+                                {% if campaign.last_check %}
+                                    {{ campaign.last_check[:16].replace('T', ' ') }}
+                                {% else %}
+                                    Jamais
+                                {% endif %}
                             </div>
                             <div style="font-size: 0.75rem; color: var(--neutral-600); text-transform: uppercase;">
                                 Dernière vérif.
                             </div>
                         </div>
                     </div>
+                    
+                    <!-- Associated Spreadsheet -->
+                    {% if campaign.spreadsheet_url %}
+                    <div style="display: flex; align-items: center; justify-content: space-between; padding: 1rem; background: linear-gradient(135deg, #4285f4, #34a853); border-radius: var(--radius-lg); color: white;">
+                        <div style="display: flex; align-items: center; gap: 1rem;">
+                            <div style="background: rgba(255, 255, 255, 0.2); padding: 0.75rem; border-radius: var(--radius-md);">
+                                <i data-feather="grid" style="width: 20px; height: 20px;"></i>
+                            </div>
+                            <div>
+                                <h4 style="margin: 0; font-size: 1rem; font-weight: 600;">Feuille Google Sheets associée</h4>
+                                <p style="margin: 0; font-size: 0.875rem; opacity: 0.9;">Articles automatiquement sauvegardés</p>
+                            </div>
+                        </div>
+                        <a href="{{ campaign.spreadsheet_url }}" target="_blank" class="btn" style="background: rgba(255, 255, 255, 0.2); color: white; border: 1px solid rgba(255, 255, 255, 0.3);">
+                            <i data-feather="external-link"></i>
+                            Ouvrir
+                        </a>
+                    </div>
+                    {% elif 'google_sheets' in campaign.integrations %}
+                    <div style="display: flex; align-items: center; justify-content: space-between; padding: 1rem; background: var(--neutral-100); border-radius: var(--radius-lg); border: 1px solid var(--neutral-200);">
+                        <div style="display: flex; align-items: center; gap: 1rem;">
+                            <div style="background: #4285f4; color: white; padding: 0.75rem; border-radius: var(--radius-md);">
+                                <i data-feather="grid" style="width: 20px; height: 20px;"></i>
+                            </div>
+                            <div>
+                                <h4 style="margin: 0; font-size: 1rem; font-weight: 600; color: var(--neutral-700);">Google Sheets configuré</h4>
+                                <p style="margin: 0; font-size: 0.875rem; color: var(--neutral-600);">Feuille en cours de création...</p>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
                 </div>
                 {% endfor %}
             </div>
@@ -206,6 +258,70 @@
                     });
             }
         }
+        
+        // Auto-refresh campaign statistics
+        function refreshCampaignStats() {
+            fetch('/api/campaigns/stats')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        updateCampaignCards(data.campaigns);
+                        updateLastRefreshTime();
+                    }
+                })
+                .catch(error => {
+                    console.error('Error refreshing campaign stats:', error);
+                });
+        }
+        
+        function updateCampaignCards(campaigns) {
+            campaigns.forEach(campaign => {
+                // Update total articles
+                const totalArticlesEl = document.querySelector(`[data-campaign-id="${campaign.id}"] .campaign-total-articles`);
+                if (totalArticlesEl && totalArticlesEl.textContent !== campaign.total_articles.toString()) {
+                    totalArticlesEl.style.color = 'var(--accent-green)';
+                    totalArticlesEl.textContent = campaign.total_articles;
+                    setTimeout(() => {
+                        totalArticlesEl.style.color = 'var(--primary-blue)';
+                    }, 1000);
+                }
+                
+                // Update articles today
+                const todayArticlesEl = document.querySelector(`[data-campaign-id="${campaign.id}"] .campaign-articles-today`);
+                if (todayArticlesEl && todayArticlesEl.textContent !== campaign.articles_today.toString()) {
+                    todayArticlesEl.style.color = 'var(--accent-green)';
+                    todayArticlesEl.textContent = campaign.articles_today;
+                    setTimeout(() => {
+                        todayArticlesEl.style.color = 'var(--accent-green)';
+                    }, 1000);
+                }
+                
+                // Update last check
+                const lastCheckEl = document.querySelector(`[data-campaign-id="${campaign.id}"] .campaign-last-check`);
+                if (lastCheckEl && campaign.last_check) {
+                    lastCheckEl.textContent = campaign.last_check.substring(0, 16).replace('T', ' ');
+                }
+            });
+        }
+        
+        function updateLastRefreshTime() {
+            const refreshIndicator = document.getElementById('refresh-indicator');
+            if (refreshIndicator) {
+                const now = new Date();
+                refreshIndicator.textContent = `Dernière mise à jour: ${now.toLocaleTimeString()}`;
+            }
+        }
+        
+        // Initialize auto-refresh
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initial refresh
+            refreshCampaignStats();
+            
+            // Set up periodic refresh every 30 seconds
+            setInterval(refreshCampaignStats, 30000);
+            
+            console.log('Campaign auto-refresh initialized');
+        });
     </script>
 </body>
 </html>

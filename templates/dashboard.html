@@ -8,6 +8,16 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <script src="https://unpkg.com/feather-icons"></script>
+    <style>
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+        .stat-number {
+            transition: all 0.3s ease;
+        }
+    </style>
 </head>
 <body>
     <header class="header">
@@ -24,6 +34,7 @@
                     <a href="/" class="nav-link active">Dashboard</a>
                     <a href="/campaigns" class="nav-link">Campagnes</a>
                     <a href="/integrations" class="nav-link">Intégrations</a>
+                    <a href="/files" class="nav-link">Fichiers</a>
                     <a href="/analytics" class="nav-link">Analytics</a>
                 </nav>
                 
@@ -167,26 +178,47 @@
 
             <!-- Dashboard Stats -->
             {% if session.credentials %}
-            <div class="dashboard-grid">
-                <!-- Statistics Cards -->
-                <div class="card stat-card">
-                    <span class="stat-number">{{ stats.active_campaigns or 0 }}</span>
-                    <span class="stat-label">Campagnes actives</span>
-                </div>
-                
-                <div class="card stat-card">
-                    <span class="stat-number">{{ stats.total_articles or 0 }}</span>
-                    <span class="stat-label">Articles collectés</span>
-                </div>
-                
-                <div class="card stat-card">
-                    <span class="stat-number">{{ stats.articles_today or 0 }}</span>
-                    <span class="stat-label">Aujourd'hui</span>
-                </div>
-                
-                <div class="card stat-card">
-                    <span class="stat-number">{{ stats.integrations_count or 0 }}</span>
-                    <span class="stat-label">Intégrations</span>
+            <div class="stats-section">
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <i data-feather="target"></i>
+                        </div>
+                        <div class="stat-content">
+                            <span class="stat-number" id="active-campaigns">{{ stats.active_campaigns or 0 }}</span>
+                            <span class="stat-label">Campagnes actives</span>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <i data-feather="file-text"></i>
+                        </div>
+                        <div class="stat-content">
+                            <span class="stat-number" id="total-articles">{{ stats.total_articles or 0 }}</span>
+                            <span class="stat-label">Articles collectés</span>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <i data-feather="calendar"></i>
+                        </div>
+                        <div class="stat-content">
+                            <span class="stat-number" id="articles-today">{{ stats.articles_today or 0 }}</span>
+                            <span class="stat-label">Aujourd'hui</span>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <i data-feather="archive"></i>
+                        </div>
+                        <div class="stat-content">
+                            <span class="stat-number" id="total-campaigns">{{ stats.total_campaigns or 0 }}</span>
+                            <span class="stat-label">Total campagnes</span>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -205,7 +237,7 @@
                     {% if campaigns %}
                     <div class="campaign-accordion">
                         {% for campaign in campaigns[:5] %}
-                        <div class="accordion-item">
+                        <div class="accordion-item" data-campaign-id="{{ campaign.id }}">
                             <div class="accordion-header" onclick="toggleAccordion('accordion-{{ loop.index }}')">
                                 <div class="campaign-header-info">
                                     <h4>{{ campaign.name }}</h4>
@@ -225,8 +257,22 @@
                                             <span><strong>Mots-clés:</strong> {{ campaign.keywords }}</span>
                                         </div>
                                         <div class="detail-item">
+                                            <i data-feather="file"></i>
+                                            <span><strong>Articles collectés:</strong> <span class="total-articles">{{ campaign.total_articles or 0 }}</span></span>
+                                        </div>
+                                        <div class="detail-item">
                                             <i data-feather="calendar"></i>
                                             <span><strong>Créée le:</strong> {{ campaign.created_at[:10] if campaign.created_at else 'N/A' }}</span>
+                                        </div>
+                                        {% if campaign.last_check %}
+                                        <div class="detail-item">
+                                            <i data-feather="clock"></i>
+                                            <span><strong>Dernière vérification:</strong> <span class="last-check">{{ campaign.last_check[:16] if campaign.last_check else 'Jamais' }}</span></span>
+                                        </div>
+                                        {% endif %}
+                                        <div class="detail-item">
+                                            <i data-feather="target"></i>
+                                            <span><strong>Aujourd'hui:</strong> <span class="articles-today">{{ campaign.articles_today or 0 }}</span> articles</span>
                                         </div>
                                         {% if campaign.spreadsheet_url %}
                                         <div class="detail-item">
@@ -348,6 +394,15 @@
                                     {% endif %}
                                 </div>
                             </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Auto-refresh Status -->
+                    <div style="grid-column: 1 / -1; margin-top: 1rem; padding: 0.75rem; background: rgba(66, 133, 244, 0.05); border-radius: var(--radius-md); border: 1px solid rgba(66, 133, 244, 0.1);">
+                        <div style="display: flex; align-items: center; justify-content: center; gap: 0.5rem; color: var(--neutral-600); font-size: 0.875rem;">
+                            <div style="width: 8px; height: 8px; background: var(--accent-green); border-radius: 50%; animation: pulse 2s infinite;"></div>
+                            <span>Mise à jour automatique active</span>
+                            <span id="last-update-time">Dernière mise à jour: Chargement...</span>
                         </div>
                     </div>
                 </div>
@@ -640,14 +695,92 @@
             }
         }
 
-        // Auto-refresh campaigns status
-        setInterval(() => {
-            fetch('/api/campaigns/status')
+        // Auto-refresh campaign statistics
+        function updateCampaignStats() {
+            fetch('/api/campaigns/stats')
                 .then(response => response.json())
                 .then(data => {
-                    // Update campaign statuses in real-time if needed
+                    if (data.success) {
+                        // Update overall statistics
+                        updateStatCard('total-campaigns', data.stats.total_campaigns);
+                        updateStatCard('active-campaigns', data.stats.active_campaigns);
+                        updateStatCard('total-articles', data.stats.total_articles);
+                        updateStatCard('articles-today', data.stats.articles_today);
+                        
+                        // Update individual campaign cards
+                        data.campaigns.forEach(campaign => {
+                            updateCampaignCard(campaign);
+                        });
+                        
+                        // Update last refresh time
+                        const lastUpdateEl = document.getElementById('last-update-time');
+                        if (lastUpdateEl) {
+                            const now = new Date();
+                            lastUpdateEl.textContent = `Dernière mise à jour: ${now.toLocaleTimeString()}`;
+                        }
+                        
+                        console.log('Campaign stats updated successfully');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error updating campaign stats:', error);
                 });
-        }, 30000); // Every 30 seconds
+        }
+        
+        function updateStatCard(id, value) {
+            const element = document.getElementById(id);
+            if (element) {
+                // Add animation effect
+                element.style.transform = 'scale(1.1)';
+                element.textContent = value;
+                setTimeout(() => {
+                    element.style.transform = 'scale(1)';
+                }, 200);
+            }
+        }
+        
+        function updateCampaignCard(campaign) {
+            const cardElement = document.querySelector(`[data-campaign-id="${campaign.id}"]`);
+            if (cardElement) {
+                // Update total articles
+                const totalArticlesEl = cardElement.querySelector('.total-articles');
+                if (totalArticlesEl && totalArticlesEl.textContent !== campaign.total_articles.toString()) {
+                    totalArticlesEl.style.color = 'var(--accent-green)';
+                    totalArticlesEl.textContent = campaign.total_articles;
+                    setTimeout(() => {
+                        totalArticlesEl.style.color = 'var(--primary-blue)';
+                    }, 1000);
+                }
+                
+                // Update articles today
+                const todayArticlesEl = cardElement.querySelector('.articles-today');
+                if (todayArticlesEl && todayArticlesEl.textContent !== campaign.articles_today.toString()) {
+                    todayArticlesEl.style.color = 'var(--accent-green)';
+                    todayArticlesEl.textContent = campaign.articles_today;
+                    setTimeout(() => {
+                        todayArticlesEl.style.color = 'var(--accent-green)';
+                    }, 1000);
+                }
+                
+                // Update last check time
+                const lastCheckEl = cardElement.querySelector('.last-check');
+                if (lastCheckEl && campaign.last_check) {
+                    const formattedTime = campaign.last_check.substring(0, 16).replace('T', ' ');
+                    lastCheckEl.textContent = formattedTime;
+                }
+            }
+        }
+        
+        // Start auto-refresh when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initial update
+            updateCampaignStats();
+            
+            // Set up periodic updates every 30 seconds
+            setInterval(updateCampaignStats, 30000);
+            
+            console.log('Auto-refresh initialized - updating every 30 seconds');
+        });
     </script>
 </body>
 </html>
