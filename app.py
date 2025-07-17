@@ -566,4 +566,16 @@ def delete_file(file_id):
         return jsonify({'success': False, 'error': str(e)})
 
 if __name__=="__main__":
-    app.run(debug=True)
+    import sys
+    port = 5000  # default port
+    
+    # Check for port argument
+    if len(sys.argv) > 1:
+        for arg in sys.argv[1:]:
+            if arg.startswith('--port='):
+                try:
+                    port = int(arg.split('=')[1])
+                except:
+                    port = 5000
+    
+    app.run(debug=True, port=port)
