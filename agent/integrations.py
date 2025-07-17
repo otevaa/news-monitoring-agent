@@ -78,13 +78,16 @@ class IntegrationManager:
     
     def get_google_sheets_status(self) -> Optional[Dict]:
         """Get Google Sheets integration status"""
-        # This would be integrated with the Google OAuth system
-        # For now, return mock data
-        return {
-            'spreadsheet_name': 'NewsMonitor Articles',
-            'spreadsheet_url': 'https://docs.google.com/spreadsheets/d/example',
-            'connected_at': '2024-01-01T00:00:00'
-        } if self.integrations.get('google_sheets') else None
+        google_sheets_data = self.integrations.get('google_sheets')
+        if google_sheets_data and google_sheets_data.get('connected'):
+            return {
+                'connected': True,
+                'connected_at': google_sheets_data.get('connected_at'),
+                'total_records': google_sheets_data.get('total_records', 0),
+                'successful_syncs': google_sheets_data.get('successful_syncs', 0),
+                'last_sync': google_sheets_data.get('last_sync')
+            }
+        return None
     
     def disconnect_integration(self, integration_name: str) -> bool:
         """Disconnect an integration"""
@@ -96,7 +99,31 @@ class IntegrationManager:
     
     def get_active_integrations_count(self) -> int:
         """Get number of active integrations"""
-        return len(self.integrations)
+        count = 0
+        
+        # Check Airtable integration
+        if self.is_airtable_configured():
+            count += 1
+        
+        # Check Google Sheets integration (need to check session)
+        # This will be updated when we have session access
+        if self.integrations.get('google_sheets', {}).get('connected', False):
+            count += 1
+            
+        return count
+    
+    def update_google_sheets_status(self, connected: bool):
+        """Update Google Sheets connection status"""
+        if 'google_sheets' not in self.integrations:
+            self.integrations['google_sheets'] = {}
+        
+        self.integrations['google_sheets']['connected'] = connected
+        if connected:
+            self.integrations['google_sheets']['connected_at'] = datetime.now().isoformat()
+        else:
+            self.integrations['google_sheets']['connected_at'] = None
+        
+        self._save_integrations()
     
     def get_usage_stats(self) -> Dict:
         """Get usage statistics for integrations"""

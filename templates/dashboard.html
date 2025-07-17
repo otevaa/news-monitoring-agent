@@ -67,6 +67,16 @@
             </div>
 
             <!-- Alerts -->
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ 'success' if category == 'success' else 'error' if category == 'warning' else category }}">
+                            <strong>{{ 'Succès' if category == 'success' else 'Attention' if category == 'warning' else 'Erreur' }}:</strong> {{ message }}
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+            
             {% if error %}
                 <div class="alert alert-error">
                     <strong>Erreur:</strong> {{ error }}
@@ -79,12 +89,63 @@
                 </div>
             {% endif %}
 
-            <!-- Quick Search -->
+            <!-- Quick Search and Campaign Creation -->
             {% if session.credentials %}
-            <div class="card" style="margin-bottom: 2rem;">
-                <div class="card-header">
-                    <h2 class="card-title">Recherche rapide</h2>
-                    <p class="card-subtitle">Lancez une recherche ponctuelle</p>
+            <div class="search-campaign-section" style="display: grid; grid-template-columns: 2fr 1fr; gap: 1.5rem; margin-bottom: 2rem;">
+                <!-- Quick Search -->
+                <div class="card">
+                    <div class="card-header">
+                        <div>
+                            <h2 class="card-title">Recherche rapide</h2>
+                            <p class="card-subtitle">Lancez une recherche ponctuelle</p>
+                        </div>
+                    </div>
+                    
+                    <form method="get" action="/veille" class="search-container">
+                        <i data-feather="search" class="search-icon"></i>
+                        <input 
+                            type="text" 
+                            name="q" 
+                            class="search-input" 
+                            placeholder="Saisissez votre mot-clé (ex: intelligence artificielle, cybersécurité...)"
+                            value="{{ request.args.get('q', '') }}"
+                        />
+                        <button type="submit" class="btn btn-primary" style="position: absolute; right: 0.5rem; top: 50%; transform: translateY(-50%);">
+                            <i data-feather="search"></i>
+                            Rechercher
+                        </button>
+                    </form>
+                </div>
+                
+                <!-- Campaign Creation -->
+                <div class="card">
+                    <div class="card-header">
+                        <div>
+                            <h2 class="card-title">Nouvelle campagne</h2>
+                            <p class="card-subtitle">Automatisez votre veille</p>
+                        </div>
+                    </div>
+                    
+                    <div style="text-align: center; padding: 1rem;">
+                        <div style="margin-bottom: 1rem;">
+                            <i data-feather="plus-circle" style="width: 48px; height: 48px; color: var(--primary-blue);"></i>
+                        </div>
+                        <p style="color: var(--neutral-600); margin-bottom: 1.5rem; font-size: 0.875rem;">
+                            Créez une campagne de veille automatique
+                        </p>
+                        <a href="/campaigns/create" class="btn btn-primary" style="width: 100%;">
+                            <i data-feather="plus"></i>
+                            Créer une campagne
+                        </a>
+                    </div>
+                </div>
+            </div>
+            {% else %}
+            <!-- Search Section for non-logged users -->
+            <div class="search-section">
+                <div class="search-header">
+                    <h2 class="search-title">Recherche ponctuelle</h2>
+                    <p class="search-subtitle">Lancez une recherche ponctuelle</p>
                 </div>
                 
                 <form method="get" action="/veille" class="search-container">
@@ -142,33 +203,71 @@
                     </div>
                     
                     {% if campaigns %}
-                    <div class="campaign-list">
+                    <div class="campaign-accordion">
                         {% for campaign in campaigns[:5] %}
-                        <div class="campaign-item">
-                            <div class="campaign-info">
-                                <h4>{{ campaign.name }}</h4>
-                                <div class="campaign-meta">
-                                    <span><i data-feather="search"></i> {{ campaign.keywords }}</span>
-                                    <span><i data-feather="clock"></i> {{ campaign.frequency }}</span>
+                        <div class="accordion-item">
+                            <div class="accordion-header" onclick="toggleAccordion('accordion-{{ loop.index }}')">
+                                <div class="campaign-header-info">
+                                    <h4>{{ campaign.name }}</h4>
+                                    <span class="campaign-frequency">{{ campaign.frequency }}</span>
                                     <span class="status-badge status-{{ campaign.status }}">{{ campaign.status }}</span>
                                 </div>
-                            </div>
-                            <div class="campaign-actions">
-                                {% if campaign.status == 'active' %}
-                                    <button class="btn btn-warning btn-sm" onclick="pauseCampaign('{{ campaign.id }}')">
-                                        <i data-feather="pause"></i>
-                                    </button>
-                                {% elif campaign.status == 'paused' %}
-                                    <button class="btn btn-success btn-sm" onclick="resumeCampaign('{{ campaign.id }}')">
-                                        <i data-feather="play"></i>
-                                    </button>
-                                {% endif %}
-                                <a href="/campaigns/{{ campaign.id }}/edit" class="btn btn-secondary btn-sm">
-                                    <i data-feather="edit"></i>
-                                </a>
-                                <button class="btn btn-danger btn-sm" onclick="deleteCampaign('{{ campaign.id }}')">
-                                    <i data-feather="trash-2"></i>
+                                <button class="accordion-toggle">
+                                    <i data-feather="chevron-down"></i>
                                 </button>
+                            </div>
+                            
+                            <div id="accordion-{{ loop.index }}" class="accordion-content">
+                                <div class="accordion-body">
+                                    <div class="campaign-details">
+                                        <div class="detail-item">
+                                            <i data-feather="search"></i>
+                                            <span><strong>Mots-clés:</strong> {{ campaign.keywords }}</span>
+                                        </div>
+                                        <div class="detail-item">
+                                            <i data-feather="calendar"></i>
+                                            <span><strong>Créée le:</strong> {{ campaign.created_at[:10] if campaign.created_at else 'N/A' }}</span>
+                                        </div>
+                                        {% if campaign.spreadsheet_url %}
+                                        <div class="detail-item">
+                                            <i data-feather="grid"></i>
+                                            <span><strong>Feuille associée:</strong> 
+                                                <a href="{{ campaign.spreadsheet_url }}" target="_blank" style="color: var(--primary-blue); text-decoration: none;">
+                                                    Ouvrir la feuille Google Sheets
+                                                </a>
+                                            </span>
+                                        </div>
+                                        {% endif %}
+                                        {% if campaign.last_execution %}
+                                        <div class="detail-item">
+                                            <i data-feather="zap"></i>
+                                            <span><strong>Dernière exécution:</strong> {{ campaign.last_execution[:10] }}</span>
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                    
+                                    <div class="campaign-actions-panel">
+                                        <a href="/campaigns/{{ campaign.id }}/edit" class="btn btn-secondary btn-sm">
+                                            <i data-feather="edit"></i>
+                                            Modifier
+                                        </a>
+                                        {% if campaign.status == 'active' %}
+                                            <button class="btn btn-warning btn-sm" onclick="pauseCampaign('{{ campaign.id }}')">
+                                                <i data-feather="pause"></i>
+                                                Pause
+                                            </button>
+                                        {% elif campaign.status == 'paused' %}
+                                            <button class="btn btn-success btn-sm" onclick="resumeCampaign('{{ campaign.id }}')">
+                                                <i data-feather="play"></i>
+                                                Reprendre
+                                            </button>
+                                        {% endif %}
+                                        <button class="btn btn-danger btn-sm" onclick="deleteCampaign('{{ campaign.id }}')">
+                                            <i data-feather="trash-2"></i>
+                                            Supprimer
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                         {% endfor %}
@@ -200,29 +299,55 @@
                         <h2 class="card-title">Intégrations</h2>
                         <a href="/integrations" class="btn btn-secondary btn-sm">
                             <i data-feather="settings"></i>
-                            Configurer
+                            Gérer
                         </a>
                     </div>
                     
-                    <div class="integration-grid">
-                        <div class="integration-card {% if integrations.google_sheets %}active{% endif %}">
-                            <div class="integration-icon" style="background: #4285f4; color: white;">
-                                <i data-feather="file-text"></i>
+                    <div class="integration-dashboard-grid">
+                        <div class="integration-dashboard-item">
+                            <div class="integration-dashboard-content">
+                                <div class="integration-icon" style="background: linear-gradient(135deg, #4285f4, #34a853); color: white;">
+                                    <i data-feather="grid"></i>
+                                </div>
+                                <div class="integration-dashboard-info">
+                                    <h4>Google Sheets</h4>
+                                    <p class="integration-description">Synchronisation automatique des articles</p>
+                                    {% if integrations.google_sheets %}
+                                        <span class="status-badge status-active">Connecté</span>
+                                        {% if integrations.google_sheets.total_records %}
+                                        <div class="integration-stats">
+                                            <span>{{ integrations.google_sheets.total_records }} articles sync.</span>
+                                        </div>
+                                        {% endif %}
+                                    {% else %}
+                                        <span class="status-badge status-inactive">Non connecté</span>
+                                        <a href="/auth" class="btn btn-primary btn-xs" style="margin-top: 0.5rem;">Connecter</a>
+                                    {% endif %}
+                                </div>
                             </div>
-                            <h4>Google Sheets</h4>
-                            <p style="font-size: 0.875rem; color: var(--neutral-500); margin-top: 0.5rem;">
-                                {% if integrations.google_sheets %}Connecté{% else %}Non configuré{% endif %}
-                            </p>
                         </div>
                         
-                        <div class="integration-card {% if integrations.airtable %}active{% endif %}">
-                            <div class="integration-icon" style="background: #ff6900; color: white;">
-                                <i data-feather="database"></i>
+                        <div class="integration-dashboard-item">
+                            <div class="integration-dashboard-content">
+                                <div class="integration-icon" style="background: linear-gradient(135deg, #ff6900, #ff8533); color: white;">
+                                    <i data-feather="database"></i>
+                                </div>
+                                <div class="integration-dashboard-info">
+                                    <h4>Airtable</h4>
+                                    <p class="integration-description">Base de données structurée</p>
+                                    {% if integrations.airtable %}
+                                        <span class="status-badge status-active">Connecté</span>
+                                        {% if integrations.airtable.total_records %}
+                                        <div class="integration-stats">
+                                            <span>{{ integrations.airtable.total_records }} enregistrements</span>
+                                        </div>
+                                        {% endif %}
+                                    {% else %}
+                                        <span class="status-badge status-inactive">Non connecté</span>
+                                        <a href="/integrations" class="btn btn-primary btn-xs" style="margin-top: 0.5rem;">Configurer</a>
+                                    {% endif %}
+                                </div>
                             </div>
-                            <h4>Airtable</h4>
-                            <p style="font-size: 0.875rem; color: var(--neutral-500); margin-top: 0.5rem;">
-                                {% if integrations.airtable %}Connecté{% else %}Non configuré{% endif %}
-                            </p>
                         </div>
                     </div>
                 </div>
@@ -247,9 +372,15 @@
                                         {{ article.titre }}
                                     </a>
                                 </h3>
-                                <div style="font-size: 0.875rem; color: var(--neutral-500); display: flex; gap: 1rem;">
-                                    <span><i data-feather="calendar"></i> {{ article.date[:10] }}</span>
-                                    <span><i data-feather="globe"></i> {{ article.source }}</span>
+                                <div style="font-size: 0.875rem; color: var(--neutral-500); display: flex; gap: 1rem; align-items: center;">
+                                    <span style="display: flex; align-items: center; gap: 0.25rem;">
+                                        <i data-feather="calendar" style="width: 14px; height: 14px;"></i>
+                                        {{ article.date[:10] }}
+                                    </span>
+                                    <span style="display: flex; align-items: center; gap: 0.25rem;">
+                                        <i data-feather="globe" style="width: 14px; height: 14px;"></i>
+                                        {{ article.source }}
+                                    </span>
                                 </div>
                             </div>
                             <a href="{{ article.url }}" target="_blank" class="btn btn-secondary btn-sm">
@@ -263,25 +394,42 @@
                 </div>
 
                 {% if articles %}
-                <div style="text-align: center; margin-top: 1.5rem;">
+                <div style="text-align: center; margin-top: 1.5rem; display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
                     <a href="/campaigns/create?keywords={{ request.args.get('q') }}" class="btn btn-primary">
                         <i data-feather="bookmark"></i>
                         Créer une campagne avec ces mots-clés
                     </a>
+                    {% if session.credentials %}
+                    <button onclick="saveSearchResults()" class="btn btn-secondary">
+                        <i data-feather="download"></i>
+                        Sauvegarder dans Google Sheets
+                    </button>
+                    <script>
+                        window.searchArticles = {{ articles | tojson | safe }};
+                    </script>
+                    {% endif %}
                 </div>
                 {% endif %}
+            </div>
+            {% endif %}
+
+            <!-- Error Message -->
+            {% if error %}
+            <div class="alert alert-error">
+                <i data-feather="alert-circle"></i>
+                {{ error }}
             </div>
             {% endif %}
         </div>
     </main>
 
     <script>
-        // Initialize Feather Icons
+        // Initialize Feather icons
         feather.replace();
 
-        // Campaign Management Functions
+        // Campaign management functions
         function pauseCampaign(campaignId) {
-            if (confirm('Êtes-vous sûr de vouloir mettre en pause cette campagne ?')) {
+            if (confirm('Mettre en pause cette campagne ?')) {
                 fetch(`/campaigns/${campaignId}/pause`, { method: 'POST' })
                     .then(response => response.json())
                     .then(data => {
@@ -307,7 +455,7 @@
         }
 
         function deleteCampaign(campaignId) {
-            if (confirm('Êtes-vous sûr de vouloir supprimer définitivement cette campagne ? Cette action est irréversible.')) {
+            if (confirm('Êtes-vous sûr de vouloir supprimer cette campagne ?')) {
                 fetch(`/campaigns/${campaignId}`, { method: 'DELETE' })
                     .then(response => response.json())
                     .then(data => {
@@ -317,6 +465,178 @@
                             alert('Erreur lors de la suppression');
                         }
                     });
+            }
+        }
+        
+        // Accordion functionality
+        function toggleAccordion(accordionId) {
+            const content = document.getElementById(accordionId);
+            const header = content.previousElementSibling;
+            const isActive = content.classList.contains('active');
+            
+            // Close all other accordions
+            document.querySelectorAll('.accordion-content').forEach(item => {
+                item.classList.remove('active');
+            });
+            document.querySelectorAll('.accordion-header').forEach(header => {
+                header.classList.remove('active');
+            });
+            
+            // Toggle current accordion
+            if (!isActive) {
+                content.classList.add('active');
+                header.classList.add('active');
+            }
+        }
+        
+        // Spreadsheet management functions
+        function showSpreadsheetDialog(campaignId, articles) {
+            // Store articles globally for access in saveResults
+            window.currentArticles = articles;
+            
+            // Create modal dialog for spreadsheet selection
+            const modal = document.createElement('div');
+            modal.className = 'modal-overlay';
+            modal.innerHTML = `
+                <div class="modal-dialog">
+                    <div class="modal-header">
+                        <h3>Sauvegarder les résultats</h3>
+                        <button onclick="closeModal()" class="btn-close">&times;</button>
+                    </div>
+                    <div class="modal-body">
+                        <p style="margin-bottom: 1rem; color: var(--neutral-600);">
+                            ${articles.length} article(s) à sauvegarder
+                        </p>
+                        <div class="form-group">
+                            <label>Choisissez une option:</label>
+                            <div class="radio-group">
+                                <label>
+                                    <input type="radio" name="spreadsheet_choice" value="new" checked>
+                                    Créer une nouvelle feuille de calcul
+                                </label>
+                                <label>
+                                    <input type="radio" name="spreadsheet_choice" value="existing">
+                                    Utiliser une feuille existante
+                                </label>
+                            </div>
+                        </div>
+                        <div id="existing-spreadsheet-options" style="display: none;">
+                            <select id="spreadsheet-select" class="form-control">
+                                <option value="">Chargement...</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button onclick="closeModal()" class="btn btn-secondary">Annuler</button>
+                        <button onclick="saveResults('${campaignId}')" class="btn btn-primary">Sauvegarder</button>
+                    </div>
+                </div>
+            `;
+            
+            document.body.appendChild(modal);
+            
+            // Load existing spreadsheets
+            loadSpreadsheets();
+            
+            // Handle radio button changes
+            document.querySelectorAll('input[name="spreadsheet_choice"]').forEach(radio => {
+                radio.addEventListener('change', function() {
+                    const existingOptions = document.getElementById('existing-spreadsheet-options');
+                    if (this.value === 'existing') {
+                        existingOptions.style.display = 'block';
+                    } else {
+                        existingOptions.style.display = 'none';
+                    }
+                });
+            });
+        }
+        
+        function loadSpreadsheets() {
+            fetch('/api/spreadsheets/list')
+                .then(response => response.json())
+                .then(data => {
+                    const select = document.getElementById('spreadsheet-select');
+                    select.innerHTML = '<option value="">Sélectionnez une feuille</option>';
+                    
+                    if (data.spreadsheets) {
+                        data.spreadsheets.forEach(sheet => {
+                            const option = document.createElement('option');
+                            option.value = sheet.id;
+                            option.textContent = sheet.name;
+                            select.appendChild(option);
+                        });
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading spreadsheets:', error);
+                    document.getElementById('spreadsheet-select').innerHTML = '<option value="">Erreur de chargement</option>';
+                });
+        }
+        
+        function saveResults(campaignId) {
+            const choice = document.querySelector('input[name="spreadsheet_choice"]:checked').value;
+            const spreadsheetId = choice === 'existing' ? document.getElementById('spreadsheet-select').value : null;
+            
+            if (choice === 'existing' && !spreadsheetId) {
+                alert('Veuillez sélectionner une feuille de calcul');
+                return;
+            }
+            
+            const articles = window.currentArticles || [];
+            
+            // For search results, create a custom campaign name
+            const campaignName = campaignId === 'search-results' ? 
+                `Recherche: ${new URLSearchParams(window.location.search).get('q') || 'Résultats'}` : 
+                campaignId;
+            
+            const endpoint = campaignId === 'search-results' ? 
+                '/api/search-results/save' : 
+                `/api/campaigns/${campaignId}/save-results`;
+            
+            fetch(endpoint, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    spreadsheet_choice: choice,
+                    spreadsheet_id: spreadsheetId,
+                    articles: articles,
+                    campaign_name: campaignName,
+                    keywords: new URLSearchParams(window.location.search).get('q') || ''
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Résultats sauvegardés avec succès!');
+                    closeModal();
+                    if (data.spreadsheet_url) {
+                        window.open(data.spreadsheet_url, '_blank');
+                    }
+                } else {
+                    alert('Erreur: ' + (data.error || 'Erreur inconnue'));
+                }
+            })
+            .catch(error => {
+                console.error('Error saving results:', error);
+                alert('Erreur lors de la sauvegarde');
+            });
+        }
+        
+        function closeModal() {
+            const modal = document.querySelector('.modal-overlay');
+            if (modal) {
+                modal.remove();
+            }
+        }
+        
+        // Function to save search results
+        function saveSearchResults() {
+            if (typeof window.searchArticles !== 'undefined') {
+                showSpreadsheetDialog('search-results', window.searchArticles);
+            } else {
+                alert('Aucun article à sauvegarder');
             }
         }
 

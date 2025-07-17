@@ -1,6 +1,7 @@
-from flask import Flask, render_template, request, redirect, session, url_for, jsonify
+from flask import Flask, render_template, request, redirect, session, url_for, jsonify, flash
 from agent.fetch_rss import fetch_articles_rss
 from agent.google_oauth import start_auth, finish_auth, get_sheets_service
+from agent.google_sheets_manager import GoogleSheetsManager
 from agent.campaign_manager import CampaignManager
 from agent.integrations import IntegrationManager
 from agent.scheduler import campaign_scheduler
@@ -15,6 +16,7 @@ app.secret_key = "ta-cle-ultra-secrete"
 # Initialize managers
 campaign_manager = CampaignManager()
 integration_manager = IntegrationManager()
+sheets_manager = GoogleSheetsManager()
 
 # Start the campaign scheduler
 campaign_scheduler.start()
@@ -24,6 +26,10 @@ atexit.register(lambda: campaign_scheduler.stop())
 
 @app.route("/")
 def home():
+    # Update Google Sheets integration status
+    google_sheets_connected = sheets_manager.is_google_sheets_connected()
+    integration_manager.update_google_sheets_status(google_sheets_connected)
+    
     # Mock data for now - replace with actual database queries
     stats = {
         'active_campaigns': len(campaign_manager.get_active_campaigns()),
@@ -34,7 +40,7 @@ def home():
     
     campaigns = campaign_manager.get_recent_campaigns(limit=5)
     integrations = {
-        'google_sheets': session.get('credentials') is not None,
+        'google_sheets': google_sheets_connected,
         'airtable': integration_manager.is_airtable_configured()
     }
     
@@ -47,7 +53,26 @@ def home():
 def veille():
     query = request.args.get("q")
     if not query or query.strip() == "":
-        return render_template("dashboard.html", articles=[], error="Veuillez saisir un mot-clé.")
+        # Return to dashboard with error, including all required template variables
+        stats = {
+            'active_campaigns': len(campaign_manager.get_active_campaigns()),
+            'total_articles': campaign_manager.get_total_articles_count(),
+            'articles_today': campaign_manager.get_articles_today_count(),
+            'integrations_count': integration_manager.get_active_integrations_count()
+        }
+        
+        campaigns = campaign_manager.get_recent_campaigns(limit=5)
+        integrations = {
+            'google_sheets': session.get('credentials') is not None,
+            'airtable': integration_manager.is_airtable_configured()
+        }
+        
+        return render_template("dashboard.html", 
+                             articles=[], 
+                             error="Veuillez saisir un mot-clé.",
+                             stats=stats,
+                             campaigns=campaigns,
+                             integrations=integrations)
 
     articles = fetch_articles_rss(query)
     session["articles"] = articles
@@ -77,7 +102,25 @@ def veille():
         except Exception as e:
             print(f"Error saving to Google Sheets: {e}")
 
-    return render_template("dashboard.html", articles=articles)
+    # Include all required template variables for successful search
+    stats = {
+        'active_campaigns': len(campaign_manager.get_active_campaigns()),
+        'total_articles': campaign_manager.get_total_articles_count(),
+        'articles_today': campaign_manager.get_articles_today_count(),
+        'integrations_count': integration_manager.get_active_integrations_count()
+    }
+    
+    campaigns = campaign_manager.get_recent_campaigns(limit=5)
+    integrations = {
+        'google_sheets': session.get('credentials') is not None,
+        'airtable': integration_manager.is_airtable_configured()
+    }
+
+    return render_template("dashboard.html", 
+                         articles=articles,
+                         stats=stats,
+                         campaigns=campaigns,
+                         integrations=integrations)
 
 # Campaign Management Routes
 @app.route("/campaigns")
@@ -108,8 +151,35 @@ def save_campaign(campaign_id=None):
     
     if campaign_id:
         campaign_manager.update_campaign(campaign_id, data)
+        flash("Campagne mise à jour avec succès !", 'success')
     else:
-        campaign_manager.create_campaign(data)
+        new_campaign_id = campaign_manager.create_campaign(data)
+        
+        # Automatically create Google Sheet for new campaigns if user is authenticated
+        if "credentials" in session:
+            try:
+                # Check if credentials are complete
+                if not sheets_manager.is_google_sheets_connected():
+                    flash("Campagne créée, mais veuillez vous reconnecter à Google Sheets pour créer la feuille associée.", 'warning')
+                else:
+                    sheet_info = sheets_manager.create_campaign_spreadsheet(data['name'])
+                    
+                    if sheet_info:
+                        # Store sheet info in campaign data
+                        campaign = campaign_manager.get_campaign(new_campaign_id)
+                        if campaign:
+                            campaign['spreadsheet_id'] = sheet_info['id']
+                            campaign['spreadsheet_url'] = sheet_info['url']
+                            campaign_manager._save_campaigns()
+                            
+                        flash(f"Campagne créée avec succès ! Feuille Google Sheets associée : {sheet_info['name']}", 'success')
+                    else:
+                        flash("Campagne créée, mais impossible de créer la feuille Google Sheets.", 'warning')
+            except Exception as e:
+                print(f"Error creating spreadsheet: {e}")
+                flash("Campagne créée, mais erreur lors de la création de la feuille Google Sheets.", 'warning')
+        else:
+            flash("Campagne créée avec succès ! Connectez-vous à Google Sheets pour créer une feuille associée.", 'success')
     
     return redirect(url_for('campaigns'))
 
@@ -192,10 +262,169 @@ def api_campaigns_status():
 def auth():
     return start_auth()
 
+@app.route("/auth/reauth")
+def reauth():
+    """Force re-authentication to get fresh credentials"""
+    # Clear existing credentials
+    if "credentials" in session:
+        del session["credentials"]
+    integration_manager.update_google_sheets_status(False)
+    return start_auth()
+
+@app.route("/auth/logout")
+def logout():
+    """Logout and clear all session data"""
+    session.clear()
+    integration_manager.update_google_sheets_status(False)
+    flash("Déconnexion réussie", 'success')
+    return redirect(url_for("home"))
+
 @app.route("/oauth2callback")
 def oauth2callback():
-    finish_auth()
-    return redirect(url_for("home"))
+    try:
+        finish_auth()
+        # Update integration status
+        integration_manager.update_google_sheets_status(True)
+        flash("Connexion Google Sheets réussie !", 'success')
+        return redirect(url_for("home"))
+    except Exception as e:
+        print(f"OAuth callback error: {e}")
+        flash("Erreur lors de la connexion Google Sheets. Veuillez réessayer.", 'error')
+        return redirect(url_for("home"))
+
+@app.route("/debug/session")
+def debug_session():
+    """Debug session contents"""
+    if "credentials" in session:
+        creds = session["credentials"]
+        return jsonify({
+            'authenticated': True,
+            'credential_keys': list(creds.keys()),
+            'has_token': 'token' in creds,
+            'has_refresh_token': 'refresh_token' in creds,
+            'has_client_id': 'client_id' in creds,
+            'has_client_secret': 'client_secret' in creds,
+            'token_preview': creds.get('token', '')[:20] + '...' if creds.get('token') else None
+        })
+    else:
+        return jsonify({'authenticated': False})
+
+# Spreadsheet management routes
+@app.route("/api/spreadsheets/list")
+def list_spreadsheets():
+    """List user's spreadsheets"""
+    if "credentials" not in session:
+        return jsonify({'error': 'Not connected to Google Sheets'}), 401
+    
+    try:
+        # Debug: Check what credentials we have
+        creds_data = session["credentials"]
+        print(f"Credentials keys: {list(creds_data.keys())}")
+        
+        # Check for required fields
+        required_fields = ['token', 'refresh_token', 'token_uri', 'client_id', 'client_secret']
+        missing_fields = [field for field in required_fields if field not in creds_data]
+        
+        if missing_fields:
+            print(f"Missing credential fields: {missing_fields}")
+            return jsonify({'error': f'Missing credential fields: {missing_fields}'}), 401
+        
+        spreadsheets = sheets_manager.list_user_spreadsheets()
+        return jsonify({'spreadsheets': spreadsheets})
+    except Exception as e:
+        print(f"Error listing spreadsheets: {e}")
+        return jsonify({'error': 'Failed to load spreadsheets'}), 500
+
+@app.route("/api/spreadsheets/create", methods=["POST"])
+def create_spreadsheet():
+    """Create new spreadsheet for campaign"""
+    if not sheets_manager.is_google_sheets_connected():
+        return jsonify({'error': 'Not connected to Google Sheets'}), 401
+    
+    data = request.get_json()
+    campaign_name = data.get('campaign_name', 'Nouvelle Campagne')
+    
+    sheet_info = sheets_manager.create_campaign_spreadsheet(campaign_name)
+    if sheet_info:
+        return jsonify({'success': True, 'spreadsheet': sheet_info})
+    else:
+        return jsonify({'success': False, 'error': 'Erreur lors de la création'})
+
+@app.route("/api/search-results/save", methods=["POST"])
+def save_search_results():
+    """Save search results to spreadsheet"""
+    if not sheets_manager.is_google_sheets_connected():
+        return jsonify({'error': 'Not connected to Google Sheets'}), 401
+    
+    data = request.get_json()
+    spreadsheet_choice = data.get('spreadsheet_choice')  # 'new' or 'existing'
+    spreadsheet_id = data.get('spreadsheet_id')  # for existing
+    articles = data.get('articles', [])
+    campaign_name = data.get('campaign_name', 'Recherche')
+    keywords = data.get('keywords', '')
+    
+    if spreadsheet_choice == 'new':
+        # Create new spreadsheet
+        sheet_info = sheets_manager.create_campaign_spreadsheet(campaign_name)
+        if not sheet_info:
+            return jsonify({'success': False, 'error': 'Erreur lors de la création'})
+        spreadsheet_id = sheet_info['id']
+    
+    # Save articles to spreadsheet
+    success = sheets_manager.save_articles_to_spreadsheet(
+        spreadsheet_id, 
+        articles, 
+        campaign_name, 
+        keywords
+    )
+    
+    if success:
+        return jsonify({
+            'success': True, 
+            'spreadsheet_id': spreadsheet_id,
+            'spreadsheet_url': f"https://docs.google.com/spreadsheets/d/{spreadsheet_id}"
+        })
+    else:
+        return jsonify({'success': False, 'error': 'Erreur lors de la sauvegarde'})
+
+@app.route("/api/campaigns/<campaign_id>/save-results", methods=["POST"])
+def save_campaign_results(campaign_id):
+    """Save campaign results to spreadsheet"""
+    if not sheets_manager.is_google_sheets_connected():
+        return jsonify({'error': 'Not connected to Google Sheets'}), 401
+    
+    data = request.get_json()
+    spreadsheet_choice = data.get('spreadsheet_choice')  # 'new' or 'existing'
+    spreadsheet_id = data.get('spreadsheet_id')  # for existing
+    articles = data.get('articles', [])
+    
+    campaign = campaign_manager.get_campaign(campaign_id)
+    if not campaign:
+        return jsonify({'error': 'Campaign not found'}), 404
+    
+    if spreadsheet_choice == 'new':
+        # Create new spreadsheet
+        sheet_info = sheets_manager.create_campaign_spreadsheet(campaign['name'])
+        if not sheet_info:
+            return jsonify({'success': False, 'error': 'Erreur lors de la création'})
+        spreadsheet_id = sheet_info['id']
+    
+    # Save articles to spreadsheet
+    success = sheets_manager.save_articles_to_spreadsheet(
+        spreadsheet_id, 
+        articles, 
+        campaign['name'], 
+        campaign['keywords']
+    )
+    
+    if success:
+        return jsonify({
+            'success': True, 
+            'spreadsheet_id': spreadsheet_id,
+            'spreadsheet_url': f"https://docs.google.com/spreadsheets/d/{spreadsheet_id}"
+        })
+    else:
+        return jsonify({'success': False, 'error': 'Erreur lors de la sauvegarde'})
 
 if __name__=="__main__":
     app.run(debug=True)

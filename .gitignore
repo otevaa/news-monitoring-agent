@@ -9,3 +9,8 @@ google-credentials.json
 
 # OS
 .DS_Store
+
+# Files
+campaigns.json
+integrations.json
+google_sheets_data.json

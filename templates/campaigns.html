@@ -66,11 +66,13 @@
                                 <span class="status-badge status-{{ campaign.status }}">
                                     {{ campaign.status|title }}
                                 </span>
-                                <span style="font-size: 0.875rem; color: var(--neutral-500);">
-                                    <i data-feather="clock"></i> {{ campaign.frequency }}
+                                <span style="font-size: 0.875rem; color: var(--neutral-500); display: flex; align-items: center; gap: 0.25rem;">
+                                    <i data-feather="clock" style="width: 14px; height: 14px;"></i>
+                                    {{ campaign.frequency }}
                                 </span>
-                                <span style="font-size: 0.875rem; color: var(--neutral-500);">
-                                    <i data-feather="calendar"></i> Créée le {{ campaign.created_at[:10] }}
+                                <span style="font-size: 0.875rem; color: var(--neutral-500); display: flex; align-items: center; gap: 0.25rem;">
+                                    <i data-feather="calendar" style="width: 14px; height: 14px;"></i>
+                                    Créée le {{ campaign.created_at[:10] }}
                                 </span>
                             </div>
                         </div>

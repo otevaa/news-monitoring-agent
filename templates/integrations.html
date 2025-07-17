@@ -52,7 +52,7 @@
                 <div class="card">
                     <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem;">
                         <div class="integration-icon" style="background: #4285f4; color: white; width: 56px; height: 56px; font-size: 1.5rem;">
-                            <i data-feather="file-text"></i>
+                            <i data-feather="grid"></i>
                         </div>
                         <div>
                             <h3 style="font-size: 1.25rem; font-weight: 600; margin-bottom: 0.25rem;">Google Sheets</h3>
@@ -71,17 +71,26 @@
                         <div style="background: var(--neutral-50); padding: 1rem; border-radius: var(--radius-md); margin-bottom: 1rem;">
                             <h4 style="font-weight: 600; margin-bottom: 0.5rem;">Configuration actuelle:</h4>
                             <p style="font-size: 0.875rem; color: var(--neutral-600);">
-                                <i data-feather="file"></i> Feuille: {{ integrations.google_sheets.spreadsheet_name }}
+                                <i data-feather="check-circle"></i> Connecté avec succès
                             </p>
                             <p style="font-size: 0.875rem; color: var(--neutral-600);">
-                                <i data-feather="calendar"></i> Connecté le: {{ integrations.google_sheets.connected_at[:10] }}
+                                <i data-feather="calendar"></i> Connecté le: {{ integrations.google_sheets.connected_at[:10] if integrations.google_sheets.connected_at else 'N/A' }}
                             </p>
+                            {% if integrations.google_sheets.total_records %}
+                            <p style="font-size: 0.875rem; color: var(--neutral-600);">
+                                <i data-feather="file-text"></i> Articles synchronisés: {{ integrations.google_sheets.total_records }}
+                            </p>
+                            {% endif %}
                         </div>
                         
                         <div style="display: flex; gap: 0.5rem;">
-                            <a href="{{ integrations.google_sheets.spreadsheet_url }}" target="_blank" class="btn btn-secondary btn-sm">
-                                <i data-feather="external-link"></i>
-                                Ouvrir la feuille
+                            <button class="btn btn-secondary btn-sm" onclick="showSpreadsheetsList()">
+                                <i data-feather="folder"></i>
+                                Mes feuilles
+                            </button>
+                            <a href="/auth/reauth" class="btn btn-secondary btn-sm">
+                                <i data-feather="refresh-cw"></i>
+                                Reconnecter
                             </a>
                             <button class="btn btn-warning btn-sm" onclick="disconnectIntegration('google_sheets')">
                                 <i data-feather="unlink"></i>
@@ -90,7 +99,7 @@
                         </div>
                     {% else %}
                         <div style="display: flex; gap: 0.5rem;">
-                            <a href="/auth/google" class="btn btn-primary">
+                            <a href="/auth" class="btn btn-primary">
                                 <i data-feather="link"></i>
                                 Connecter Google Sheets
                             </a>
@@ -383,6 +392,76 @@
                 closeModal(e.target.id);
             }
         });
+        
+        // Show spreadsheets list
+        function showSpreadsheetsList() {
+            fetch('/api/spreadsheets/list')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.spreadsheets && data.spreadsheets.length > 0) {
+                        showSpreadsheetsModal(data.spreadsheets);
+                    } else {
+                        alert("Aucune feuille de calcul NewsMonitor trouvée.\\nCréez votre première feuille en sauvegardant des résultats de recherche ou de campagne.");
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading spreadsheets:', error);
+                    alert('Erreur lors du chargement des feuilles de calcul');
+                });
+        }
+        
+        function showSpreadsheetsModal(spreadsheets) {
+            const modal = document.createElement('div');
+            modal.className = 'modal-overlay';
+            modal.id = 'spreadsheets-modal';
+            
+            let spreadsheetsHtml = '';
+            spreadsheets.forEach((sheet, index) => {
+                const createdDate = new Date(sheet.created_time).toLocaleDateString('fr-FR');
+                spreadsheetsHtml += `
+                    <div class="spreadsheet-item" style="padding: 1rem; border: 1px solid var(--neutral-200); border-radius: var(--radius-md); margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <h4 style="margin: 0 0 0.25rem 0; font-size: 1rem; font-weight: 600;">${sheet.name}</h4>
+                            <p style="margin: 0; font-size: 0.875rem; color: var(--neutral-600);">Créée le ${createdDate}</p>
+                        </div>
+                        <a href="${sheet.url}" target="_blank" class="btn btn-primary btn-sm">
+                            <i data-feather="external-link"></i>
+                            Ouvrir
+                        </a>
+                    </div>
+                `;
+            });
+            
+            modal.innerHTML = `
+                <div class="modal-dialog" style="max-width: 600px;">
+                    <div class="modal-header">
+                        <h3>Mes feuilles Google Sheets</h3>
+                        <button onclick="closeSpreadsheetModal()" class="btn-close">&times;</button>
+                    </div>
+                    <div class="modal-body">
+                        <p style="margin-bottom: 1.5rem; color: var(--neutral-600);">
+                            ${spreadsheets.length} feuille(s) de calcul NewsMonitor trouvée(s)
+                        </p>
+                        <div class="spreadsheets-list">
+                            ${spreadsheetsHtml}
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button onclick="closeSpreadsheetModal()" class="btn btn-secondary">Fermer</button>
+                    </div>
+                </div>
+            `;
+            
+            document.body.appendChild(modal);
+            feather.replace();
+        }
+        
+        function closeSpreadsheetModal() {
+            const modal = document.getElementById('spreadsheets-modal');
+            if (modal) {
+                modal.remove();
+            }
+        }
     </script>
 </body>
 </html>
