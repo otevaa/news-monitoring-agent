@@ -4,89 +4,7 @@ from datetime import datetime, timedelta
 import requests
 import re
 import os
-from dotenv import load_dotenv
 from .multi_ai_enhancer import create_ai_enhancer
-
-# Load environment variables
-load_dotenv()
-
-def expand_keywords(query):
-    """Expand keywords with synonyms and related terms"""
-    if not query:
-        return query
-    
-    # Basic keyword expansion (simple version)
-    synonyms = {
-        'AI': ['intelligence artificielle', 'IA', 'machine learning', 'apprentissage automatique'],
-        'technologie': ['tech', 'numérique', 'innovation', 'digital'],
-        'entreprise': ['société', 'compagnie', 'business', 'startup'],
-        'marché': ['secteur', 'industrie', 'économie', 'commerce'],
-        'développement': ['création', 'innovation', 'évolution', 'progrès']
-    }
-    
-    expanded = query
-    for word, alternatives in synonyms.items():
-        if word.lower() in query.lower():
-            expanded += ' ' + ' '.join(alternatives)
-    
-    return expanded
-
-def parse_entry_date(entry):
-    """Parse entry date from RSS feed"""
-    try:
-        if hasattr(entry, 'published_parsed') and entry.published_parsed:
-            return datetime(*entry.published_parsed[:6])
-        elif hasattr(entry, 'updated_parsed') and entry.updated_parsed:
-            return datetime(*entry.updated_parsed[:6])
-        else:
-            return datetime.now()
-    except:
-        return datetime.now()
-
-def fetch_articles_rss(query, max_items=25):
-    """Fetch articles from RSS sources (Google News)"""
-    if not query or query.strip() == "":
-        raise ValueError("Le mot-clé ne peut pas être vide.")
-    
-    # Expand keywords for better coverage
-    expanded_query = expand_keywords(query)
-    
-    # Get Google News results
-    query_encoded = quote_plus(query)
-    url = f"https://news.google.com/rss/search?q={query_encoded}&hl=fr&gl=FR&ceid=FR:fr"
-    feed = feedparser.parse(url)
-    
-    results = []
-    
-    # Process Google News results
-    for entry in feed.entries[:max_items]:
-        # Get the real URL instead of the Google News redirect
-        real_url = get_real_url(entry.link)
-        
-        # Parse date safely
-        pub_date = parse_entry_date(entry)
-        
-        results.append({
-            "date": pub_date.isoformat(),
-            "source": "Google News RSS",
-            "titre": str(entry.title) if hasattr(entry, 'title') else "",
-            "url": real_url,
-            "resume": str(entry.summary) if hasattr(entry, 'summary') else ""
-        })
-    
-    # Sort by date (most recent first)
-    results.sort(key=lambda x: x['date'], reverse=True)
-    
-    # Remove duplicates based on URL
-    seen_urls = set()
-    unique_results = []
-    
-    for result in results:
-        if result['url'] not in seen_urls:
-            seen_urls.add(result['url'])
-            unique_results.append(result)
-    
-    return unique_results[:max_items]
 
 def get_real_url(google_news_url):
     """Extract the real URL from Google News redirect URL"""
@@ -165,6 +83,7 @@ def fetch_articles_multi_source(keywords, max_items=25, use_ai_filtering=True, r
     
     # 2. RSS feeds (from various news sources)
     print("Fetching from RSS feeds...")
+    from .fetch_rss import fetch_articles_rss
     rss_feed_articles = fetch_articles_rss(keywords, max_items=items_per_source)
     rss_articles.extend(rss_feed_articles)
     print(f"RSS Feeds: {len(rss_feed_articles)} articles")
@@ -269,13 +188,8 @@ def fetch_google_news_articles(keywords, max_items=25):
                 pub_date = datetime.now()
                 if hasattr(entry, 'published_parsed') and entry.published_parsed:
                     try:
-                        # Handle feedparser tuple conversion - ignore type checking
-                        parsed_time = entry.published_parsed  # type: ignore
-                        if parsed_time and len(parsed_time) >= 6:
-                            pub_date = datetime(*parsed_time[:6])  # type: ignore
-                        else:
-                            pub_date = datetime.now()
-                    except (TypeError, ValueError, IndexError):
+                        pub_date = datetime(*entry.published_parsed[:6])
+                    except:
                         pub_date = datetime.now()
                 
                 # Get real URL

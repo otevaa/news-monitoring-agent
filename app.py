@@ -1,6 +1,7 @@
 from flask import Flask, render_template, request, redirect, session, url_for, jsonify, flash
-from agent.fetch_rss import fetch_articles_rss
+from agent.fetch_multi_source import fetch_articles_multi_source, fetch_articles_rss
 from agent.google_oauth import start_auth, finish_auth, get_sheets_service
+from agent.async_campaign_manager import AsyncCampaignManager
 from agent.google_sheets_manager import GoogleSheetsManager
 from agent.campaign_manager import CampaignManager
 from agent.integrations import IntegrationManager
@@ -8,10 +9,8 @@ from agent.scheduler import campaign_scheduler
 from agent.user_profile_manager import UserProfileManager
 from agent.multi_ai_enhancer import create_ai_enhancer
 import json
-from datetime import datetime
-import uuid
 import atexit
-import os
+from datetime import datetime
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -20,11 +19,98 @@ load_dotenv()
 app = Flask(__name__)
 app.secret_key = "ta-cle-ultra-secrete"
 
-# Initialize managers
-campaign_manager = CampaignManager()
-integration_manager = IntegrationManager()
-sheets_manager = GoogleSheetsManager()
-user_profile_manager = UserProfileManager()
+# Initialize managers with error handling
+try:
+    campaign_manager = CampaignManager()
+    print("✅ Campaign Manager initialized")
+except Exception as e:
+    print(f"❌ Campaign Manager initialization failed: {e}")
+    # Create a fallback class with safe methods
+    class FallbackCampaignManager:
+        def get_active_campaigns(self): return []
+        def get_total_articles_count(self): return 0
+        def get_articles_today_count(self): return 0
+        def get_recent_campaigns(self, limit=5): return []
+        def get_campaigns(self): return []
+        def get_all_campaigns(self): return []
+        def get_campaign(self, campaign_id=None): 
+            if campaign_id is None:
+                return None
+            return None
+        def get_campaign_by_id(self, id): return None
+        def create_campaign(self, data): return None
+        def update_campaign(self, id, data): return False
+        def delete_campaign(self, id): return False
+        def pause_campaign(self, id): return False
+        def resume_campaign(self, id): return False
+        def get_total_campaigns_count(self): return 0
+        def _save_campaigns(self): pass
+    campaign_manager = FallbackCampaignManager()
+
+try:
+    integration_manager = IntegrationManager()
+    print("✅ Integration Manager initialized")
+except Exception as e:
+    print(f"❌ Integration Manager initialization failed: {e}")
+    # Create a fallback class with safe methods
+    class FallbackIntegrationManager:
+        def is_google_sheets_connected(self): return False
+        def update_google_sheets_status(self, status): pass
+        def get_active_integrations_count(self): return 0
+        def is_airtable_configured(self): return False
+        def get_google_sheets_status(self): return None
+        def get_airtable_status(self): return None
+        def disconnect_integration(self, name): return False
+        def configure_airtable(self, api_key, base_id, table_name): return False
+        def get_usage_stats(self): return {'total_articles_sent': 0, 'articles_today': 0, 'successful_syncs': 0, 'last_sync': 'Never'}
+    integration_manager = FallbackIntegrationManager()
+
+try:
+    sheets_manager = GoogleSheetsManager()
+    print("✅ Google Sheets Manager initialized")
+except Exception as e:
+    print(f"❌ Google Sheets Manager initialization failed: {e}")
+    # Create a fallback class with safe methods
+    class FallbackSheetsManager:
+        def is_google_sheets_connected(self): return False
+        def get_sheets_service(self): return None
+        def get_drive_service(self): return None
+        def list_user_spreadsheets(self): return []
+        def create_campaign_spreadsheet(self, name): return None
+        def save_articles_to_spreadsheet(self, id, articles, campaign_name="", keywords=""): return False
+        def get_campaign_spreadsheets(self, campaign_name=None): return []
+        def delete_spreadsheet(self, id): return False
+        def get_spreadsheet_info(self, id): return None
+    sheets_manager = FallbackSheetsManager()
+
+try:
+    async_campaign_manager = AsyncCampaignManager()
+    print("✅ Async Campaign Manager initialized")
+except Exception as e:
+    print(f"❌ Async Campaign Manager initialization failed: {e}")
+    # Create a fallback class with safe methods  
+    class FallbackAsyncCampaignManager:
+        def __init__(self): self.tasks = {}
+        def get_task_status(self, task_id): return {'status': 'error', 'error': 'Manager not initialized'}
+    async_campaign_manager = FallbackAsyncCampaignManager()
+
+try:
+    user_profile_manager = UserProfileManager()
+    print("✅ User Profile Manager initialized")
+except Exception as e:
+    print(f"❌ User Profile Manager initialization failed: {e}")
+    # Create a fallback class with safe methods
+    class FallbackUserProfileManager:
+        def get_user_profile(self, user_id='default'): return {}
+        def update_user_profile(self, user_id='default', data=None, updates=None): return False
+        def get_ai_model(self): return 'openai-gpt3.5'
+        def set_ai_model(self, model): return False
+        def get_relevance_threshold(self): return 70
+        def set_relevance_threshold(self, threshold): return False
+        def generate_api_key(self): return 'fallback-key'
+        def get_api_key(self): return 'fallback-key'
+        def regenerate_api_key(self): return 'fallback-key'
+    user_profile_manager = FallbackUserProfileManager()
 
 # Start the campaign scheduler
 campaign_scheduler.start()
@@ -32,25 +118,42 @@ campaign_scheduler.start()
 # Ensure scheduler is stopped when app shuts down
 atexit.register(lambda: campaign_scheduler.stop())
 
-@app.route("/")
-def home():
-    # Update Google Sheets integration status
-    google_sheets_connected = sheets_manager.is_google_sheets_connected()
-    integration_manager.update_google_sheets_status(google_sheets_connected)
-    
-    # Mock data for now - replace with actual database queries
-    stats = {
+# Helper functions to reduce redundancy
+def get_dashboard_stats():
+    """Get common dashboard statistics"""
+    return {
         'active_campaigns': len(campaign_manager.get_active_campaigns()),
         'total_articles': campaign_manager.get_total_articles_count(),
         'articles_today': campaign_manager.get_articles_today_count(),
         'integrations_count': integration_manager.get_active_integrations_count()
     }
-    
-    campaigns = campaign_manager.get_recent_campaigns(limit=5)
-    integrations = {
-        'google_sheets': google_sheets_connected,
+
+def get_dashboard_integrations():
+    """Get integration status for dashboard"""
+    return {
+        'google_sheets': sheets_manager.is_google_sheets_connected(),
         'airtable': integration_manager.is_airtable_configured()
     }
+
+def check_google_sheets_access():
+    """Check if Google Sheets is connected and return appropriate response"""
+    if not sheets_manager.is_google_sheets_connected():
+        return jsonify({'error': 'Not connected to Google Sheets'}), 401
+    return None
+
+@app.route("/")
+def home():
+    # Clear any lingering flash messages to prevent them from appearing on dashboard
+    session.pop('_flashes', None)
+    
+    # Update Google Sheets integration status
+    google_sheets_connected = sheets_manager.is_google_sheets_connected()
+    integration_manager.update_google_sheets_status(google_sheets_connected)
+    
+    # Get dashboard data
+    stats = get_dashboard_stats()
+    campaigns = campaign_manager.get_recent_campaigns(limit=5)
+    integrations = get_dashboard_integrations()
     
     return render_template("dashboard.html", 
                          stats=stats, 
@@ -62,18 +165,9 @@ def veille():
     query = request.args.get("q")
     if not query or query.strip() == "":
         # Return to dashboard with error, including all required template variables
-        stats = {
-            'active_campaigns': len(campaign_manager.get_active_campaigns()),
-            'total_articles': campaign_manager.get_total_articles_count(),
-            'articles_today': campaign_manager.get_articles_today_count(),
-            'integrations_count': integration_manager.get_active_integrations_count()
-        }
-        
+        stats = get_dashboard_stats()
         campaigns = campaign_manager.get_recent_campaigns(limit=5)
-        integrations = {
-            'google_sheets': session.get('credentials') is not None,
-            'airtable': integration_manager.is_airtable_configured()
-        }
+        integrations = get_dashboard_integrations()
         
         return render_template("dashboard.html", 
                              articles=[], 
@@ -82,7 +176,11 @@ def veille():
                              campaigns=campaigns,
                              integrations=integrations)
 
-    articles = fetch_articles_rss(query)
+    try:
+        articles = fetch_articles_multi_source(query, max_items=25, use_ai_filtering=False, show_keyword_suggestions=False)
+    except Exception as e:
+        print(f"Error with multi-source fetch, falling back to RSS: {e}")
+        articles = fetch_articles_rss(query)
     session["articles"] = articles
 
     if "credentials" not in session:
@@ -111,18 +209,9 @@ def veille():
             print(f"Error saving to Google Sheets: {e}")
 
     # Include all required template variables for successful search
-    stats = {
-        'active_campaigns': len(campaign_manager.get_active_campaigns()),
-        'total_articles': campaign_manager.get_total_articles_count(),
-        'articles_today': campaign_manager.get_articles_today_count(),
-        'integrations_count': integration_manager.get_active_integrations_count()
-    }
-    
+    stats = get_dashboard_stats()
     campaigns = campaign_manager.get_recent_campaigns(limit=5)
-    integrations = {
-        'google_sheets': session.get('credentials') is not None,
-        'airtable': integration_manager.is_airtable_configured()
-    }
+    integrations = get_dashboard_integrations()
 
     return render_template("dashboard.html", 
                          articles=articles,
@@ -133,6 +222,9 @@ def veille():
 # Campaign Management Routes
 @app.route("/campaigns")
 def campaigns():
+    # Clear any lingering flash messages to prevent them from appearing on campaigns page
+    session.pop('_flashes', None)
+    
     all_campaigns = campaign_manager.get_all_campaigns()
     
     # Add spreadsheet URLs for campaigns that have Google Sheets integration
@@ -160,92 +252,103 @@ def edit_campaign(campaign_id):
 @app.route("/campaigns/create", methods=["POST"])
 @app.route("/campaigns/<campaign_id>/edit", methods=["POST"])
 def save_campaign(campaign_id=None):
-    # Get user AI preferences
-    user_profile = user_profile_manager.get_user_profile(user_id='default')
-    
-    data = {
-        'name': request.form.get('name'),
-        'keywords': request.form.get('keywords'),
-        'frequency': request.form.get('frequency'),
-        'integrations': request.form.getlist('integrations'),
-        'max_articles': int(request.form.get('max_articles', 25)),
-        'description': request.form.get('description', ''),
-        # AI Enhancement Options - now using defaults from user profile
-        'ai_filtering_enabled': True,  # Always enabled
-        'relevance_threshold': user_profile.get('relevance_threshold', 70),
-        'keyword_expansion_enabled': True,  # Always enabled
-        'priority_alerts_enabled': True,  # Always enabled
-        'ai_model': user_profile.get('ai_model', 'openai-gpt3.5')  # Get from user profile
-    }
-    
-    if campaign_id:
-        campaign_manager.update_campaign(campaign_id, data)
-        flash("Campagne mise à jour avec succès !", 'success')
-    else:
-        new_campaign_id = campaign_manager.create_campaign(data)
+    """Save or update a campaign"""
+    try:
+        # Get user AI preferences
+        user_profile = user_profile_manager.get_user_profile(user_id='default')
         
-        # Handle Google Sheets creation/selection if user is authenticated
-        if "credentials" in session and 'google_sheets' in data.get('integrations', []):
-            try:
-                # Check if credentials are complete
-                if not sheets_manager.is_google_sheets_connected():
-                    flash("Campagne créée, mais veuillez vous reconnecter à Google Sheets pour créer la feuille associée.", 'warning')
-                else:
-                    spreadsheet_choice = request.form.get('spreadsheet_choice', 'new')
-                    spreadsheet_id = request.form.get('spreadsheet_id')
-                    
-                    if spreadsheet_choice == 'existing' and spreadsheet_id:
-                        # Use existing spreadsheet
-                        campaign = campaign_manager.get_campaign(new_campaign_id)
-                        if campaign:
-                            campaign['spreadsheet_id'] = spreadsheet_id
-                            campaign['spreadsheet_url'] = f"https://docs.google.com/spreadsheets/d/{spreadsheet_id}"
-                            campaign_manager._save_campaigns()
-                        flash(f"Campagne créée avec succès ! Utilisation de la feuille existante sélectionnée.", 'success')
-                    else:
-                        # Create new spreadsheet
-                        sheet_info = sheets_manager.create_campaign_spreadsheet(data['name'])
-                        
-                        if sheet_info:
-                            # Store sheet info in campaign data
-                            campaign = campaign_manager.get_campaign(new_campaign_id)
-                            if campaign:
-                                campaign['spreadsheet_id'] = sheet_info['id']
-                                campaign['spreadsheet_url'] = sheet_info['url']
-                                campaign_manager._save_campaigns()
-                                
-                            flash(f"Campagne créée avec succès ! Feuille Google Sheets associée : {sheet_info['name']}", 'success')
-                        else:
-                            flash("Campagne créée, mais impossible de créer la feuille Google Sheets.", 'warning')
-                            
-                    # **IMMEDIATELY FETCH ARTICLES AFTER CAMPAIGN CREATION**
-                    campaign = campaign_manager.get_campaign(new_campaign_id)
-                    if campaign:
-                        from agent.scheduler import campaign_scheduler
-                        try:
-                            # Run the campaign immediately to fetch initial articles
-                            campaign_scheduler.run_campaign(campaign)
-                            flash("Articles initiaux récupérés avec succès !", 'success')
-                        except Exception as e:
-                            print(f"Error running initial campaign fetch: {e}")
-                            flash("Campagne créée, mais erreur lors de la récupération initiale des articles.", 'warning')
-                            
-            except Exception as e:
-                print(f"Error creating spreadsheet: {e}")
-                flash("Campagne créée, mais erreur lors de la création de la feuille Google Sheets.", 'warning')
+        data = {
+            'name': request.form.get('name', '').strip(),
+            'keywords': request.form.get('keywords', '').strip(),
+            'frequency': request.form.get('frequency', '').strip(),
+            'integrations': request.form.getlist('integrations'),
+            'max_articles': int(request.form.get('max_articles', 25)),
+            'description': request.form.get('description', '').strip(),
+            # AI Enhancement Options - now using defaults from user profile
+            'ai_filtering_enabled': request.form.get('ai_filtering_enabled', 'false').lower() == 'true',
+            'relevance_threshold': user_profile.get('relevance_threshold', 70),
+            'keyword_expansion_enabled': request.form.get('keyword_expansion_enabled', 'false').lower() == 'true',
+            'priority_alerts_enabled': request.form.get('priority_alerts_enabled', 'false').lower() == 'true',
+            'ai_model': user_profile.get('ai_model', 'openai-gpt3.5')
+        }
+        
+        # Add debug logging
+        print(f"DEBUG: Form data received:")
+        print(f"  Name: '{data['name']}'")
+        print(f"  Keywords: '{data['keywords']}'")
+        print(f"  Frequency: '{data['frequency']}'")
+        print(f"  Max articles: {data['max_articles']}")
+        print(f"  AI filtering: {data['ai_filtering_enabled']}")
+        
+        # Validate basic inputs
+        if not data['name']:
+            flash("Erreur: Le nom de la campagne ne peut pas être vide", 'error')
+            return redirect(url_for("create_campaign"))
+        
+        if not data['keywords']:
+            flash("Erreur: Les mots-clés ne peuvent pas être vides", 'error')
+            return redirect(url_for("create_campaign"))
+        
+        if not data['frequency']:
+            flash("Erreur: Veuillez sélectionner une fréquence", 'error')
+            return redirect(url_for("create_campaign"))
+        
+        if campaign_id:
+            # Update existing campaign
+            campaign_manager.update_campaign(campaign_id, data)
+            flash("Campagne mise à jour avec succès !", 'success')
+            return redirect(url_for("campaigns"))
         else:
-            # Still run initial fetch even without Google Sheets
-            campaign = campaign_manager.get_campaign(new_campaign_id)
-            if campaign:
-                from agent.scheduler import campaign_scheduler
+            # Create new campaign
+            new_campaign_id = campaign_manager.create_campaign(data)
+            
+            # Handle Google Sheets integration
+            if "credentials" in session and 'google_sheets' in data.get('integrations', []):
                 try:
-                    campaign_scheduler.run_campaign(campaign)
-                    flash("Campagne créée avec succès ! Articles initiaux récupérés.", 'success')
+                    if sheets_manager.is_google_sheets_connected():
+                        spreadsheet_choice = request.form.get('spreadsheet_choice', 'new')
+                        spreadsheet_id = request.form.get('spreadsheet_id')
+                        
+                        if spreadsheet_choice == 'existing' and spreadsheet_id:
+                            # Link existing spreadsheet to campaign
+                            if new_campaign_id:
+                                campaign = campaign_manager.get_campaign(new_campaign_id)
+                                if campaign:
+                                    campaign['spreadsheet_id'] = spreadsheet_id
+                                    campaign['spreadsheet_url'] = f"https://docs.google.com/spreadsheets/d/{spreadsheet_id}"
+                                    campaign_manager._save_campaigns()
+                        else:
+                            # Create new spreadsheet
+                            sheet_info = sheets_manager.create_campaign_spreadsheet(data['name'])
+                            if sheet_info and new_campaign_id:
+                                campaign = campaign_manager.get_campaign(new_campaign_id)
+                                if campaign:
+                                    campaign['spreadsheet_id'] = sheet_info['id']
+                                    campaign['spreadsheet_url'] = sheet_info['url']
+                                    campaign_manager._save_campaigns()
                 except Exception as e:
-                    print(f"Error running initial campaign fetch: {e}")
-                    flash("Campagne créée avec succès ! Connectez-vous à Google Sheets pour créer une feuille associée.", 'success')
-    
-    return redirect(url_for('campaigns'))
+                    print(f"Error setting up Google Sheets for campaign: {e}")
+                    flash("Campagne créée, mais erreur lors de la configuration de Google Sheets.", 'warning')
+            
+            # Run initial campaign fetch
+            if new_campaign_id:
+                campaign = campaign_manager.get_campaign(new_campaign_id)
+                if campaign:
+                    from agent.scheduler import campaign_scheduler
+                    try:
+                        campaign_scheduler.run_campaign(campaign)
+                        flash("Campagne créée avec succès ! Articles initiaux récupérés.", 'success')
+                    except Exception as e:
+                        print(f"Error running initial campaign fetch: {e}")
+                        flash("Campagne créée avec succès ! Erreur lors de la récupération initiale des articles.", 'warning')
+            
+            # Redirect to campaigns list after successful creation
+            return redirect(url_for("campaigns"))
+            
+    except Exception as e:
+        print(f"Error saving campaign: {e}")
+        flash("Erreur lors de la sauvegarde de la campagne.", 'error')
+        return redirect(url_for("create_campaign") if not campaign_id else url_for("campaigns"))
 
 @app.route("/campaigns/<campaign_id>/pause", methods=["POST"])
 def pause_campaign(campaign_id):
@@ -259,6 +362,26 @@ def resume_campaign(campaign_id):
 
 @app.route("/campaigns/<campaign_id>", methods=["DELETE"])
 def delete_campaign(campaign_id):
+    data = request.get_json() or {}
+    delete_sheet = data.get('delete_sheet', False)
+    
+    # Get campaign info before deletion
+    campaign = campaign_manager.get_campaign(campaign_id)
+    
+    if campaign and delete_sheet and campaign.get('spreadsheet_id'):
+        # Delete the associated Google Sheet
+        try:
+            from agent.google_sheets_manager import GoogleSheetsManager
+            sheets_manager = GoogleSheetsManager()
+            if sheets_manager.is_google_sheets_connected():
+                # Note: Google Sheets API doesn't allow deletion of sheets via API
+                # We'll just remove the reference and log the action
+                print(f"Sheet reference removed for campaign '{campaign['name']}' (ID: {campaign.get('spreadsheet_id')})")
+            else:
+                print("Google Sheets not connected - cannot delete sheet")
+        except Exception as e:
+            print(f"Error handling sheet deletion: {e}")
+    
     success = campaign_manager.delete_campaign(campaign_id)
     return jsonify({'success': success})
 
@@ -329,7 +452,11 @@ def save_ai_settings():
             flash('Paramètres IA sauvegardés avec succès!', 'success')
         else:
             flash('Erreur lors de la sauvegarde des paramètres IA.', 'error')
-        return redirect(url_for('profile_ai_settings'))
+        
+        # Stay on the same page instead of redirecting
+        return render_template('profile_ai_settings.html', 
+                             user_profile=user_profile_manager.get_user_profile(user_id='default'),
+                             settings_saved=success)
 
 @app.route("/api/test-ai-model", methods=["POST"])
 def test_ai_model():
@@ -375,7 +502,21 @@ def api_preview():
     keywords = data.get('keywords', '')
     
     try:
-        articles = fetch_articles_rss(keywords, max_items=5)
+        # AI filtering disabled by default for preview
+        use_ai_filtering = data.get('ai_filtering_enabled', False)
+        relevance_threshold = data.get('relevance_threshold', 70)
+        
+        try:
+            articles = fetch_articles_multi_source(
+                keywords, 
+                max_items=25, 
+                use_ai_filtering=use_ai_filtering,
+                relevance_threshold=relevance_threshold,
+                show_keyword_suggestions=False  # Don't show suggestions in preview
+            )
+        except Exception as e:
+            print(f"Error with multi-source fetch, falling back to RSS: {e}")
+            articles = fetch_articles_rss(keywords, max_items=5)
         return jsonify({'success': True, 'articles': articles})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
@@ -453,6 +594,10 @@ def list_spreadsheets():
     if "credentials" not in session:
         return jsonify({'error': 'Not connected to Google Sheets'}), 401
     
+    error_response = check_google_sheets_access()
+    if error_response:
+        return error_response
+    
     try:
         # Debug: Check what credentials we have
         creds_data = session["credentials"]
@@ -471,6 +616,22 @@ def list_spreadsheets():
     except Exception as e:
         print(f"Error listing spreadsheets: {e}")
         return jsonify({'error': 'Failed to load spreadsheets'}), 500
+
+@app.route("/api/tasks/<task_id>/status")
+def get_task_status(task_id):
+    """Get the status of an async campaign creation task"""
+    status = async_campaign_manager.get_task_status(task_id)
+    if status:
+        return jsonify(status)
+    else:
+        return jsonify({"error": "Task not found"}), 404
+
+@app.route("/api/notifications/<page>")
+def get_page_notifications(page):
+    """Get notifications for a specific page"""
+    # This would normally check for page-specific notifications
+    # For now, return empty as we're using Flask flash messages
+    return jsonify({"notifications": []})
 
 @app.route("/api/spreadsheets/create", methods=["POST"])
 def create_spreadsheet():
@@ -638,13 +799,31 @@ def file_management():
 
 @app.route("/api/files/<file_id>/delete", methods=["DELETE"])
 def delete_file(file_id):
-    """Delete a spreadsheet file"""
+    """Delete a spreadsheet file and optionally associated campaign"""
     if not sheets_manager.is_google_sheets_connected():
         return jsonify({'error': 'Not connected to Google Sheets'}), 401
     
     try:
+        # Check if user wants to delete the associated campaign
+        delete_campaign = request.args.get('delete_campaign', 'false').lower() == 'true'
+        
+        # Find associated campaign if it exists
+        campaign_to_delete = None
+        if delete_campaign:
+            campaigns = campaign_manager.get_all_campaigns()
+            for campaign in campaigns:
+                if campaign.get('spreadsheet_id') == file_id:
+                    campaign_to_delete = campaign
+                    break
+        
+        # Delete the spreadsheet
         success = sheets_manager.delete_spreadsheet(file_id)
+        
         if success:
+            # Delete associated campaign if requested
+            if campaign_to_delete and delete_campaign:
+                campaign_manager.delete_campaign(campaign_to_delete['id'])
+            
             return jsonify({'success': True})
         else:
             return jsonify({'success': False, 'error': 'Impossible de supprimer le fichier'})

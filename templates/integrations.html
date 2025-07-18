@@ -65,11 +65,10 @@
                     
                     <p style="color: var(--neutral-600); margin-bottom: 1.5rem;">
                         Sauvegardez automatiquement tous les articles trouvés dans une feuille Google Sheets organisée.
-                        Idéal pour l'analyse et le partage en équipe.
                     </p>
                     
                     {% if integrations.google_sheets %}
-                        <div style="background: var(--neutral-50); padding: 1rem; border-radius: var(--radius-md); margin-bottom: 1rem;">
+                        <div style="background: var(--neutral-50); padding: 1rem; border-radius: var(--radius-md); margin-bottom: 1rem; min-height: 100px;">
                             <h4 style="font-weight: 600; margin-bottom: 0.5rem;">Configuration actuelle:</h4>
                             <p style="font-size: 0.875rem; color: var(--neutral-600);">
                                 <i data-feather="check-circle"></i> Connecté avec succès
@@ -77,14 +76,9 @@
                             <p style="font-size: 0.875rem; color: var(--neutral-600);">
                                 <i data-feather="calendar"></i> Connecté le: {{ integrations.google_sheets.connected_at[:10] if integrations.google_sheets.connected_at else 'N/A' }}
                             </p>
-                            {% if integrations.google_sheets.total_records %}
-                            <p style="font-size: 0.875rem; color: var(--neutral-600);">
-                                <i data-feather="file-text"></i> Articles synchronisés: {{ integrations.google_sheets.total_records }}
-                            </p>
-                            {% endif %}
                         </div>
                         
-                        <div style="display: flex; gap: 0.5rem;">
+                        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
                             <button class="btn btn-secondary btn-sm" onclick="showSpreadsheetsList()">
                                 <i data-feather="folder"></i>
                                 Mes feuilles
@@ -132,7 +126,7 @@
                     </p>
                     
                     {% if integrations.airtable %}
-                        <div style="background: var(--neutral-50); padding: 1rem; border-radius: var(--radius-md); margin-bottom: 1rem;">
+                        <div style="background: var(--neutral-50); padding: 1rem; border-radius: var(--radius-md); margin-bottom: 1rem; min-height: 100px;">
                             <h4 style="font-weight: 600; margin-bottom: 0.5rem;">Configuration actuelle:</h4>
                             <p style="font-size: 0.875rem; color: var(--neutral-600);">
                                 <i data-feather="database"></i> Base: {{ integrations.airtable.base_name }}
@@ -142,7 +136,7 @@
                             </p>
                         </div>
                         
-                        <div style="display: flex; gap: 0.5rem;">
+                        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
                             <a href="{{ integrations.airtable.base_url }}" target="_blank" class="btn btn-secondary btn-sm">
                                 <i data-feather="external-link"></i>
                                 Ouvrir la base
@@ -349,6 +343,40 @@
                         </ol>
                     </div>
                 `;
+            } else if (integration === 'twitter_x') {
+                title.textContent = 'Configuration Twitter/X API';
+                content.innerHTML = `
+                    <div style="line-height: 1.6;">
+                        <h4 style="margin-bottom: 1rem;">Pré-requis :</h4>
+                        <ol style="margin-left: 1.5rem; margin-bottom: 1rem;">
+                            <li>Créez un compte développeur <a href="https://developer.twitter.com" target="_blank">Twitter/X</a></li>
+                            <li>Créez une nouvelle application</li>
+                            <li>Récupérez vos clés API</li>
+                        </ol>
+                        
+                        <h4 style="margin-bottom: 1rem;">Comment obtenir vos clés API :</h4>
+                        <ol style="margin-left: 1.5rem; margin-bottom: 1rem;">
+                            <li>Connectez-vous à <a href="https://developer.twitter.com/en/portal/dashboard" target="_blank">Twitter Developer Portal</a></li>
+                            <li>Créez un projet et une application</li>
+                            <li>Dans l'onglet "Keys and tokens", générez :</li>
+                            <ul style="margin-left: 1.5rem; margin-top: 0.5rem;">
+                                <li><strong>API Key</strong> et <strong>API Secret</strong></li>
+                                <li><strong>Access Token</strong> et <strong>Access Token Secret</strong></li>
+                            </ul>
+                            <li>Copiez ces 4 valeurs dans le formulaire</li>
+                        </ol>
+                        
+                        <h4 style="margin-bottom: 1rem;">Permissions requises :</h4>
+                        <ul style="margin-left: 1.5rem;">
+                            <li>Read permissions pour accéder aux tweets</li>
+                            <li>Pas besoin de permissions Write</li>
+                        </ul>
+                        
+                        <div style="background: #f8f9fa; padding: 1rem; border-radius: 8px; margin-top: 1rem;">
+                            <strong>Note :</strong> L'accès gratuit à l'API Twitter/X est limité. Vérifiez les quotas sur le portail développeur.
+                        </div>
+                    </div>
+                `;
             }
             
             modal.style.display = 'flex';
@@ -387,9 +415,42 @@
             });
         });
 
+        // Twitter/X form submission
+        document.getElementById('twitter-x-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const submitBtn = e.target.querySelector('button[type="submit"]');
+            const originalText = submitBtn.innerHTML;
+            submitBtn.innerHTML = '<i data-feather="loader"></i> Configuration...';
+            submitBtn.disabled = true;
+            
+            const formData = new FormData(this);
+            
+            fetch('/integrations/twitter_x/configure', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    closeModal('twitter-x-modal');
+                    location.reload();
+                } else {
+                    alert('Erreur: ' + (data.error || 'Configuration échouée'));
+                }
+            })
+            .catch(error => {
+                alert('Erreur de réseau');
+            })
+            .finally(() => {
+                submitBtn.innerHTML = originalText;
+                submitBtn.disabled = false;
+            });
+        });
+
         // Close modals when clicking outside
         document.addEventListener('click', function(e) {
-            if (e.target.id === 'airtable-modal' || e.target.id === 'instructions-modal') {
+            if (e.target.id === 'airtable-modal' || e.target.id === 'instructions-modal' || e.target.id === 'twitter-x-modal') {
                 closeModal(e.target.id);
             }
         });
@@ -463,6 +524,30 @@
                 modal.remove();
             }
         }
+
+        document.getElementById('twitter-x-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(this);
+            
+            fetch('/integrations/twitter_x/configure', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Configuration Twitter/X enregistrée avec succès!');
+                    closeModal('twitter-x-modal');
+                } else {
+                    alert('Erreur lors de la configuration: ' + data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Erreur lors de la configuration');
+            });
+        });
     </script>
 </body>
 </html>

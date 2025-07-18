@@ -30,7 +30,7 @@ NewsMonitor Pro helps you track news mentions, monitor industry trends, and coll
 
 ### 🔗 **Multiple Integrations**
 - **Google Sheets**: Automatic spreadsheet creation and updates
-- **Multi-Source Fetching**: RSS, Reddit, Facebook, X/Twitter, LinkedIn
+- **Multi-Source Fetching**: RSS, Google News, X/Twitter
 - **Airtable**: Advanced database with custom views and filters
 - Easy setup with guided configuration
 
@@ -83,7 +83,6 @@ NewsMonitor Pro helps you track news mentions, monitor industry trends, and coll
 
 4. **Configure environment variables**
    ```bash
-   cp .env.example .env
    # Edit .env with your API keys and AI preferences
    ```
 
@@ -225,7 +224,7 @@ news-monitoring-agent/
 ├── integrations.json     # Integration settings (auto-generated)
 ├── agent/
 │   ├── __init__.py
-│   ├── fetch_rss.py      # RSS feed fetching
+│   ├── fetch_multi_source.py  # Multi-source article fetching (RSS, Google News, X/Twitter)
 │   ├── google_oauth.py   # Google OAuth handling
 │   ├── campaign_manager.py # Campaign management
 │   ├── integrations.py   # Integration management

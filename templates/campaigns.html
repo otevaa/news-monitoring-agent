@@ -247,7 +247,22 @@
 
         function deleteCampaign(campaignId) {
             if (confirm('Êtes-vous sûr de vouloir supprimer définitivement cette campagne ? Cette action est irréversible.')) {
-                fetch(`/campaigns/${campaignId}`, { method: 'DELETE' })
+                // Check if campaign has associated Google Sheet
+                const campaignCard = document.querySelector(`[data-campaign-id="${campaignId}"]`);
+                const hasGoogleSheet = campaignCard && campaignCard.querySelector('.integration-google-sheets');
+                
+                let deleteSheet = false;
+                if (hasGoogleSheet) {
+                    deleteSheet = confirm('Cette campagne a une feuille Google associée. Voulez-vous également supprimer la référence à cette feuille ?');
+                }
+                
+                fetch(`/campaigns/${campaignId}`, { 
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ delete_sheet: deleteSheet })
+                })
                     .then(response => response.json())
                     .then(data => {
                         if (data.success) {

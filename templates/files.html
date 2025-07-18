@@ -17,6 +17,11 @@
             position: relative;
         }
         
+        .file-card.selected {
+            border-color: var(--primary-blue);
+            background: rgba(59, 130, 246, 0.05);
+        }
+        
         .file-card:hover {
             transform: translateY(-2px);
             box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
@@ -28,6 +33,35 @@
         
         .file-card.standalone-sheet {
             border-left: 4px solid var(--neutral-400);
+        }
+        
+        .file-checkbox {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            width: 18px;
+            height: 18px;
+            accent-color: var(--primary-blue);
+        }
+        
+        .bulk-actions {
+            display: none;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1rem;
+            padding: 1rem;
+            background: var(--neutral-50);
+            border-radius: var(--radius-md);
+            border: 1px solid var(--neutral-200);
+        }
+        
+        .bulk-actions.show {
+            display: flex;
+        }
+        
+        .bulk-actions .selected-count {
+            font-weight: 600;
+            color: var(--primary-blue);
         }
         
         .file-header {
@@ -294,9 +328,31 @@
 
         <!-- Files Grid -->
         {% if spreadsheets %}
+        
+        <!-- Bulk Actions -->
+        <div id="bulkActions" class="bulk-actions">
+            <div class="selected-count">
+                <span id="selectedCount">0</span> fichier(s) sélectionné(s)
+            </div>
+            <div style="flex: 1;"></div>
+            <button class="btn btn-secondary" onclick="selectAll()">
+                <i data-feather="check-square"></i>
+                Tout sélectionner
+            </button>
+            <button class="btn btn-secondary" onclick="deselectAll()">
+                <i data-feather="square"></i>
+                Tout désélectionner
+            </button>
+            <button class="btn btn-danger" onclick="confirmBulkDelete()">
+                <i data-feather="trash-2"></i>
+                Supprimer la sélection
+            </button>
+        </div>
+        
         <div class="files-grid">
             {% for sheet in spreadsheets %}
             <div class="file-card {% if sheet.is_campaign_sheet %}campaign-sheet{% else %}standalone-sheet{% endif %}" data-file-id="{{ sheet.id }}">
+                <input type="checkbox" class="file-checkbox" data-file-id="{{ sheet.id }}" onchange="updateBulkActions()">
                 <div class="file-header">
                     <div class="file-info">
                         <h3 class="file-title">
@@ -322,11 +378,12 @@
                             <i data-feather="external-link" style="width: 16px; height: 16px;"></i>
                         </button>
                         
-                        {% if not sheet.is_campaign_sheet %}
-                        <button class="action-btn delete" onclick="confirmDelete('{{ sheet.id }}', '{{ sheet.name }}')" title="Supprimer">
+                        <button class="action-btn delete" 
+                               onclick="confirmDelete('{{ sheet.id }}', '{{ sheet.name }}', this.dataset.isCampaign === 'true')" 
+                               data-is-campaign="{{ 'true' if sheet.is_campaign_sheet else 'false' }}"
+                               title="Supprimer">
                             <i data-feather="trash-2" style="width: 16px; height: 16px;"></i>
                         </button>
-                        {% endif %}
                     </div>
                 </div>
                 
@@ -378,6 +435,19 @@
             <p>Êtes-vous sûr de vouloir supprimer la feuille "<span id="fileName"></span>" ?</p>
             <p style="font-size: 0.875rem; color: var(--danger-red);">Cette action est irréversible.</p>
             
+            <div id="campaignSheetWarning" style="display: none; margin-bottom: 1rem; padding: 1rem; background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 4px;">
+                <p style="color: #856404; margin: 0;">
+                    <strong>⚠️ Attention :</strong> Certains fichiers sont associés à des campagnes. 
+                    Voulez-vous également supprimer les campagnes associées ?
+                </p>
+                <div style="margin-top: 0.5rem;">
+                    <label style="display: flex; align-items: center; gap: 0.5rem;">
+                        <input type="checkbox" id="deleteCampaignToo">
+                        <span>Supprimer également les campagnes associées</span>
+                    </label>
+                </div>
+            </div>
+            
             <div class="delete-actions">
                 <button class="btn btn-outline" onclick="cancelDelete()">Annuler</button>
                 <button class="btn btn-danger" onclick="deleteFile()">Supprimer</button>
@@ -387,43 +457,146 @@
 
     <script>
         let fileToDelete = null;
+        let filesToDelete = [];
+        let showCampaignDeletePrompt = false;
 
-        function confirmDelete(fileId, fileName) {
+        function confirmDelete(fileId, fileName, isCampaignSheet) {
             fileToDelete = fileId;
+            showCampaignDeletePrompt = isCampaignSheet;
             document.getElementById('fileName').textContent = fileName;
+            
+            // Show/hide campaign warning
+            const campaignWarning = document.getElementById('campaignSheetWarning');
+            if (isCampaignSheet) {
+                campaignWarning.style.display = 'block';
+            } else {
+                campaignWarning.style.display = 'none';
+            }
+            
             document.getElementById('deleteModal').style.display = 'flex';
         }
 
         function cancelDelete() {
             fileToDelete = null;
+            filesToDelete = [];
+            showCampaignDeletePrompt = false;
             document.getElementById('deleteModal').style.display = 'none';
         }
 
+        function updateBulkActions() {
+            const checkboxes = document.querySelectorAll('.file-checkbox');
+            const selected = Array.from(checkboxes).filter(cb => cb.checked);
+            const bulkActions = document.getElementById('bulkActions');
+            const selectedCount = document.getElementById('selectedCount');
+            
+            selectedCount.textContent = selected.length;
+            
+            if (selected.length > 0) {
+                bulkActions.classList.add('show');
+                // Update selected visual state
+                selected.forEach(checkbox => {
+                    checkbox.closest('.file-card').classList.add('selected');
+                });
+                // Remove selected state from unchecked
+                Array.from(checkboxes).filter(cb => !cb.checked).forEach(checkbox => {
+                    checkbox.closest('.file-card').classList.remove('selected');
+                });
+            } else {
+                bulkActions.classList.remove('show');
+                // Remove all selected states
+                document.querySelectorAll('.file-card.selected').forEach(card => {
+                    card.classList.remove('selected');
+                });
+            }
+        }
+
+        function selectAll() {
+            const checkboxes = document.querySelectorAll('.file-checkbox');
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = true;
+            });
+            updateBulkActions();
+        }
+
+        function deselectAll() {
+            const checkboxes = document.querySelectorAll('.file-checkbox');
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = false;
+            });
+            updateBulkActions();
+        }
+
+        function confirmBulkDelete() {
+            const checkboxes = document.querySelectorAll('.file-checkbox:checked');
+            if (checkboxes.length === 0) return;
+            
+            filesToDelete = Array.from(checkboxes).map(cb => cb.dataset.fileId);
+            
+            // Check if any campaign sheets are selected
+            const campaignSheets = Array.from(checkboxes).filter(cb => {
+                const card = cb.closest('.file-card');
+                return card.classList.contains('campaign-sheet');
+            });
+            
+            showCampaignDeletePrompt = campaignSheets.length > 0;
+            
+            document.getElementById('fileName').textContent = `${filesToDelete.length} fichier(s) sélectionné(s)`;
+            
+            // Show/hide campaign warning for bulk delete
+            const campaignWarning = document.getElementById('campaignSheetWarning');
+            if (showCampaignDeletePrompt) {
+                campaignWarning.style.display = 'block';
+            } else {
+                campaignWarning.style.display = 'none';
+            }
+            
+            document.getElementById('deleteModal').style.display = 'flex';
+        }
+
         async function deleteFile() {
-            if (!fileToDelete) return;
+            const toDelete = filesToDelete.length > 0 ? filesToDelete : [fileToDelete];
+            if (toDelete.length === 0) return;
 
             try {
-                const response = await fetch(`/api/files/${fileToDelete}/delete`, {
-                    method: 'DELETE'
+                // Check if user wants to delete associated campaigns
+                const deleteCampaign = document.getElementById('deleteCampaignToo').checked;
+                
+                const promises = toDelete.map(fileId => {
+                    const url = `/api/files/${fileId}/delete${deleteCampaign ? '?delete_campaign=true' : ''}`;
+                    return fetch(url, {
+                        method: 'DELETE'
+                    }).then(response => response.json());
                 });
 
-                const result = await response.json();
-
-                if (result.success) {
-                    // Remove file card from DOM
-                    const fileCard = document.querySelector(`[data-file-id="${fileToDelete}"]`);
-                    if (fileCard) {
-                        fileCard.remove();
+                const results = await Promise.all(promises);
+                
+                let successCount = 0;
+                let errorCount = 0;
+                
+                results.forEach((result, index) => {
+                    if (result.success) {
+                        successCount++;
+                        // Remove file card from DOM
+                        const fileCard = document.querySelector(`[data-file-id="${toDelete[index]}"]`);
+                        if (fileCard) {
+                            fileCard.remove();
+                        }
+                    } else {
+                        errorCount++;
                     }
-
+                });
+                
+                if (successCount > 0) {
                     // Update statistics
                     location.reload();
-                } else {
-                    alert('Erreur lors de la suppression : ' + (result.error || 'Erreur inconnue'));
+                }
+                
+                if (errorCount > 0) {
+                    alert(`${errorCount} fichier(s) n'ont pas pu être supprimé(s)`);
                 }
             } catch (error) {
-                console.error('Error deleting file:', error);
-                alert('Erreur lors de la suppression du fichier');
+                console.error('Error deleting files:', error);
+                alert('Erreur lors de la suppression des fichiers');
             }
 
             cancelDelete();

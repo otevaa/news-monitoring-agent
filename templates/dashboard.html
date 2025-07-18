@@ -8,6 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <script src="https://unpkg.com/feather-icons"></script>
+    <script src="{{ url_for('static', filename='app.js') }}"></script>
     <style>
         @keyframes pulse {
             0% { opacity: 1; }
@@ -489,578 +490,132 @@
     </main>
 
     <script>
-        // Initialize Feather icons when DOM is ready
+        // Initialize NewsMonitorApp when DOM is loaded
         document.addEventListener('DOMContentLoaded', function() {
-            initializeFeatherIcons();
-        });
-        
-        // Also initialize immediately
-        initializeFeatherIcons();
-        
-        function initializeFeatherIcons() {
-            try {
+            // Initialize feather icons first
+            if (typeof feather !== 'undefined') {
                 feather.replace();
-                console.log('Feather icons initialized');
+                console.log('✅ Feather icons initialized');
+            }
+            
+            // Initialize the application
+            if (typeof NewsMonitorApp !== 'undefined') {
+                window.newsApp = new NewsMonitorApp();
+                console.log('✅ NewsMonitor App initialized');
+            } else {
+                console.error('❌ NewsMonitorApp not found');
+            }
+            
+            // Initialize voice command if available
+            if (typeof VoiceCommandManager !== 'undefined') {
+                window.voiceManager = new VoiceCommandManager();
+                console.log('✅ Voice Command Manager initialized');
+            } else {
+                console.error('❌ VoiceCommandManager not found');
+            }
+            
+            // Fallback initialization if external JS fails
+            setTimeout(() => {
+                if (typeof feather !== 'undefined') {
+                    feather.replace();
+                }
                 
-                // Check if icons loaded properly, if not show fallback
-                setTimeout(() => {
-                    const voiceBtn = document.querySelector('.voice-command-btn');
+                // Check if voice button icon loaded properly
+                const voiceBtn = document.querySelector('.voice-command-btn');
+                if (voiceBtn) {
                     const micIcon = voiceBtn.querySelector('[data-feather="mic"]');
                     const fallbackIcon = voiceBtn.querySelector('.fallback-icon');
                     
-                    if (micIcon && (micIcon.innerHTML === '' || micIcon.tagName === 'I')) {
-                        // Icon didn't load, show fallback
-                        micIcon.style.display = 'none';
-                        fallbackIcon.style.display = 'inline-block';
-                        console.log('Using fallback icon for voice command');
-                    }
-                }, 100);
-                
-            } catch (error) {
-                console.error('Failed to initialize Feather icons:', error);
-                // Show fallback icons
-                const fallbackIcons = document.querySelectorAll('.fallback-icon');
-                fallbackIcons.forEach(icon => {
-                    icon.style.display = 'inline-block';
-                    icon.previousElementSibling.style.display = 'none';
-                });
-            }
-        }
-
-        // Campaign management functions
-        function pauseCampaign(campaignId) {
-            if (confirm('Mettre en pause cette campagne ?')) {
-                fetch(`/campaigns/${campaignId}/pause`, { method: 'POST' })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.success) {
-                            location.reload();
-                        } else {
-                            alert('Erreur lors de la mise en pause');
+                    if (micIcon && (!micIcon.innerHTML || micIcon.innerHTML.trim() === '')) {
+                        if (fallbackIcon) {
+                            micIcon.style.display = 'none';
+                            fallbackIcon.style.display = 'inline-block';
                         }
-                    });
-            }
-        }
-
-        function resumeCampaign(campaignId) {
-            fetch(`/campaigns/${campaignId}/resume`, { method: 'POST' })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        location.reload();
-                    } else {
-                        alert('Erreur lors de la reprise');
                     }
-                });
-        }
-
-        function deleteCampaign(campaignId) {
-            if (confirm('Êtes-vous sûr de vouloir supprimer cette campagne ?')) {
-                fetch(`/campaigns/${campaignId}`, { method: 'DELETE' })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.success) {
-                            location.reload();
-                        } else {
-                            alert('Erreur lors de la suppression');
-                        }
-                    });
-            }
-        }
-        
-        // Accordion functionality
-        function toggleAccordion(accordionId) {
-            const content = document.getElementById(accordionId);
-            const header = content.previousElementSibling;
-            const isActive = content.classList.contains('active');
-            
-            // Close all other accordions
-            document.querySelectorAll('.accordion-content').forEach(item => {
-                item.classList.remove('active');
-            });
-            document.querySelectorAll('.accordion-header').forEach(header => {
-                header.classList.remove('active');
-            });
-            
-            // Toggle current accordion
-            if (!isActive) {
-                content.classList.add('active');
-                header.classList.add('active');
-            }
-        }
-        
-        // Spreadsheet management functions
-        function showSpreadsheetDialog(campaignId, articles) {
-            // Store articles globally for access in saveResults
-            window.currentArticles = articles;
-            
-            // Create modal dialog for spreadsheet selection
-            const modal = document.createElement('div');
-            modal.className = 'modal-overlay';
-            modal.innerHTML = `
-                <div class="modal-dialog">
-                    <div class="modal-header">
-                        <h3>Sauvegarder les résultats</h3>
-                        <button onclick="closeModal()" class="btn-close">&times;</button>
-                    </div>
-                    <div class="modal-body">
-                        <p style="margin-bottom: 1rem; color: var(--neutral-600);">
-                            ${articles.length} article(s) à sauvegarder
-                        </p>
-                        <div class="form-group">
-                            <label>Choisissez une option:</label>
-                            <div class="radio-group">
-                                <label>
-                                    <input type="radio" name="spreadsheet_choice" value="new" checked>
-                                    Créer une nouvelle feuille de calcul
-                                </label>
-                                <label>
-                                    <input type="radio" name="spreadsheet_choice" value="existing">
-                                    Utiliser une feuille existante
-                                </label>
-                            </div>
-                        </div>
-                        <div id="existing-spreadsheet-options" style="display: none;">
-                            <select id="spreadsheet-select" class="form-control">
-                                <option value="">Chargement...</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="modal-footer">
-                        <button onclick="closeModal()" class="btn btn-secondary">Annuler</button>
-                        <button onclick="saveResults('${campaignId}')" class="btn btn-primary">Sauvegarder</button>
-                    </div>
-                </div>
-            `;
-            
-            document.body.appendChild(modal);
-            
-            // Load existing spreadsheets
-            loadSpreadsheets();
-            
-            // Handle radio button changes
-            document.querySelectorAll('input[name="spreadsheet_choice"]').forEach(radio => {
-                radio.addEventListener('change', function() {
-                    const existingOptions = document.getElementById('existing-spreadsheet-options');
-                    if (this.value === 'existing') {
-                        existingOptions.style.display = 'block';
-                    } else {
-                        existingOptions.style.display = 'none';
-                    }
-                });
-            });
-        }
-        
-        function loadSpreadsheets() {
-            fetch('/api/spreadsheets/list')
-                .then(response => response.json())
-                .then(data => {
-                    const select = document.getElementById('spreadsheet-select');
-                    select.innerHTML = '<option value="">Sélectionnez une feuille</option>';
-                    
-                    if (data.spreadsheets) {
-                        data.spreadsheets.forEach(sheet => {
-                            const option = document.createElement('option');
-                            option.value = sheet.id;
-                            option.textContent = sheet.name;
-                            select.appendChild(option);
-                        });
-                    }
-                })
-                .catch(error => {
-                    console.error('Error loading spreadsheets:', error);
-                    document.getElementById('spreadsheet-select').innerHTML = '<option value="">Erreur de chargement</option>';
-                });
-        }
-        
-        function saveResults(campaignId) {
-            const choice = document.querySelector('input[name="spreadsheet_choice"]:checked').value;
-            const spreadsheetId = choice === 'existing' ? document.getElementById('spreadsheet-select').value : null;
-            
-            if (choice === 'existing' && !spreadsheetId) {
-                alert('Veuillez sélectionner une feuille de calcul');
-                return;
-            }
-            
-            const articles = window.currentArticles || [];
-            
-            // For search results, create a custom campaign name
-            const campaignName = campaignId === 'search-results' ? 
-                `Recherche: ${new URLSearchParams(window.location.search).get('q') || 'Résultats'}` : 
-                campaignId;
-            
-            const endpoint = campaignId === 'search-results' ? 
-                '/api/search-results/save' : 
-                `/api/campaigns/${campaignId}/save-results`;
-            
-            fetch(endpoint, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    spreadsheet_choice: choice,
-                    spreadsheet_id: spreadsheetId,
-                    articles: articles,
-                    campaign_name: campaignName,
-                    keywords: new URLSearchParams(window.location.search).get('q') || ''
-                })
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    alert('Résultats sauvegardés avec succès!');
-                    closeModal();
-                    if (data.spreadsheet_url) {
-                        window.open(data.spreadsheet_url, '_blank');
-                    }
-                } else {
-                    alert('Erreur: ' + (data.error || 'Erreur inconnue'));
-                }
-            })
-            .catch(error => {
-                console.error('Error saving results:', error);
-                alert('Erreur lors de la sauvegarde');
-            });
-        }
-        
-        function closeModal() {
-            const modal = document.querySelector('.modal-overlay');
-            if (modal) {
-                modal.remove();
-            }
-        }
-        
-        // Function to save search results
-        function saveSearchResults() {
-            if (typeof window.searchArticles !== 'undefined') {
-                showSpreadsheetDialog('search-results', window.searchArticles);
-            } else {
-                alert('Aucun article à sauvegarder');
-            }
-        }
-
-        // Auto-refresh campaign statistics
-        function updateCampaignStats() {
-            fetch('/api/campaigns/stats')
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        // Update overall statistics
-                        updateStatCard('total-campaigns', data.stats.total_campaigns);
-                        updateStatCard('active-campaigns', data.stats.active_campaigns);
-                        updateStatCard('total-articles', data.stats.total_articles);
-                        updateStatCard('articles-today', data.stats.articles_today);
-                        
-                        // Update individual campaign cards
-                        data.campaigns.forEach(campaign => {
-                            updateCampaignCard(campaign);
-                        });
-                        
-                        // Update last refresh time
-                        const lastUpdateEl = document.getElementById('last-update-time');
-                        if (lastUpdateEl) {
-                            const now = new Date();
-                            lastUpdateEl.textContent = `Dernière mise à jour: ${now.toLocaleTimeString()}`;
-                        }
-                        
-                        console.log('Campaign stats updated successfully');
-                    }
-                })
-                .catch(error => {
-                    console.error('Error updating campaign stats:', error);
-                });
-        }
-        
-        function updateStatCard(id, value) {
-            const element = document.getElementById(id);
-            if (element) {
-                // Add animation effect
-                element.style.transform = 'scale(1.1)';
-                element.textContent = value;
-                setTimeout(() => {
-                    element.style.transform = 'scale(1)';
-                }, 200);
-            }
-        }
-        
-        function updateCampaignCard(campaign) {
-            const cardElement = document.querySelector(`[data-campaign-id="${campaign.id}"]`);
-            if (cardElement) {
-                // Update total articles
-                const totalArticlesEl = cardElement.querySelector('.total-articles');
-                if (totalArticlesEl && totalArticlesEl.textContent !== campaign.total_articles.toString()) {
-                    totalArticlesEl.style.color = 'var(--accent-green)';
-                    totalArticlesEl.textContent = campaign.total_articles;
-                    setTimeout(() => {
-                        totalArticlesEl.style.color = 'var(--primary-blue)';
-                    }, 1000);
                 }
                 
-                // Update articles today
-                const todayArticlesEl = cardElement.querySelector('.articles-today');
-                if (todayArticlesEl && todayArticlesEl.textContent !== campaign.articles_today.toString()) {
-                    todayArticlesEl.style.color = 'var(--accent-green)';
-                    todayArticlesEl.textContent = campaign.articles_today;
-                    setTimeout(() => {
-                        todayArticlesEl.style.color = 'var(--accent-green)';
-                    }, 1000);
+                // Initialize basic functionality if classes don't exist
+                if (typeof window.newsApp === 'undefined') {
+                    console.warn('⚠️ Using fallback initialization');
+                    initializeFallbackFunctions();
                 }
-                
-                // Update last check time
-                const lastCheckEl = cardElement.querySelector('.last-check');
-                if (lastCheckEl && campaign.last_check) {
-                    const formattedTime = campaign.last_check.substring(0, 16).replace('T', ' ');
-                    lastCheckEl.textContent = formattedTime;
-                }
-            }
-        }
-        
-        // Start auto-refresh when page loads
-        document.addEventListener('DOMContentLoaded', function() {
-            // Initial update
-            updateCampaignStats();
-            
-            // Set up periodic updates every 30 seconds
-            setInterval(updateCampaignStats, 30000);
-            
-            console.log('Auto-refresh initialized - updating every 30 seconds');
+            }, 1000);
         });
-
-        // Mobile menu toggle
-        function toggleMobileMenu() {
-            const navLinks = document.querySelector('.nav-links');
-            navLinks.classList.toggle('active');
-        }
-
-        // Voice command functionality
-        let recognition;
-        let isListening = false;
-        let currentTranscript = '';
-
-        function startVoiceCommand() {
-            console.log('🎤 Voice command button clicked!');
+        
+        // Fallback functions for basic functionality
+        function initializeFallbackFunctions() {
+            // Basic voice command function
+            window.startVoiceCommand = function() {
+                console.log('Using fallback voice command');
+                alert('Fonction vocale non disponible. Veuillez recharger la page.');
+            };
             
-            // Check for speech recognition support
-            if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
-                alert('Votre navigateur ne supporte pas la reconnaissance vocale. Utilisez Chrome, Edge ou Safari.');
-                return;
-            }
-
-            const modal = document.getElementById('voiceModal');
-            const status = document.getElementById('voiceStatus');
-            const transcript = document.getElementById('voiceTranscript');
-            const btn = document.querySelector('.voice-command-btn');
-            const executeBtn = document.getElementById('executeBtn');
-
-            if (!modal) {
-                console.error('❌ Modal not found!');
-                alert('Erreur: Modal introuvable');
-                return;
-            }
-
-            console.log('✅ Modal elements found:', { modal, status, transcript, btn, executeBtn });
-
-            // Show modal and reset state
-            modal.style.display = 'flex';
-            status.textContent = 'Préparation de l\'écoute...';
-            transcript.textContent = '';
-            executeBtn.style.display = 'none';
-            currentTranscript = '';
-
-            // Initialize speech recognition directly
-            try {
-                recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
-                recognition.lang = 'fr-FR';
-                recognition.continuous = false;
-                recognition.interimResults = true;
-                recognition.maxAlternatives = 5;
-                
-                console.log('✅ Speech recognition initialized');
-                
-                // Add the listening class when starting
-                btn.classList.add('listening');
+            // Basic campaign management
+            window.pauseCampaign = function(campaignId) {
+                if (confirm('Mettre en pause cette campagne ?')) {
+                    fetch(`/campaigns/${campaignId}/pause`, { method: 'POST' })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.success) {
+                                location.reload();
+                            } else {
+                                alert('Erreur lors de la mise en pause');
+                            }
+                        });
+                }
+            };
             
-                recognition.onstart = function() {
-                    console.log('✅ Speech recognition started');
-                    status.textContent = 'Écoute en cours... Parlez maintenant !';
-                    isListening = true;
-                };
-
-                recognition.onresult = function(event) {
-                    console.log('✅ Speech recognition result received:', event);
-                    let interimTranscript = '';
-                    let finalTranscript = '';
-
-                    for (let i = event.resultIndex; i < event.results.length; i++) {
-                        const result = event.results[i];
-                        const resultText = result[0].transcript;
-                        
-                        console.log(`📝 Result ${i}: "${resultText}" (final: ${result.isFinal})`);
-                        
-                        if (result.isFinal) {
-                            finalTranscript += resultText;
+            window.resumeCampaign = function(campaignId) {
+                fetch(`/campaigns/${campaignId}/resume`, { method: 'POST' })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            location.reload();
                         } else {
-                            interimTranscript += resultText;
+                            alert('Erreur lors de la reprise');
                         }
-                    }
-
-                    const displayTranscript = finalTranscript || interimTranscript;
-                    console.log('📝 Updating transcript display:', displayTranscript);
-                    
-                    // Update the transcript display
-                    transcript.textContent = displayTranscript;
-                    
-                    if (interimTranscript) {
-                        status.textContent = 'En cours de reconnaissance...';
-                    }
-
-                    if (finalTranscript) {
-                        currentTranscript = finalTranscript.trim();
-                        status.textContent = 'Commande reçue ! Vous pouvez l\'exécuter.';
-                        executeBtn.style.display = 'inline-block';
-                        btn.classList.remove('listening');
-                        console.log('✅ Final transcript:', currentTranscript);
-                    }
-                };
-
-                recognition.onerror = function(event) {
-                    console.error('❌ Speech recognition error:', event.error);
-                    let errorMessage = '';
-                    switch(event.error) {
-                        case 'no-speech':
-                            errorMessage = 'Aucune parole détectée. Parlez plus fort et réessayez.';
-                            break;
-                        case 'audio-capture':
-                            errorMessage = 'Microphone non disponible. Vérifiez vos paramètres.';
-                            break;
-                        case 'not-allowed':
-                            errorMessage = 'Permission microphone refusée. Autorisez le microphone et réessayez.';
-                            break;
-                        case 'network':
-                            errorMessage = 'Erreur réseau. Vérifiez votre connexion.';
-                            break;
-                        case 'aborted':
-                            errorMessage = 'Reconnaissance interrompue.';
-                            break;
-                        default:
-                            errorMessage = `Erreur: ${event.error}. Réessayez.`;
-                    }
-                    status.textContent = errorMessage;
-                    btn.classList.remove('listening');
-                    isListening = false;
-                };
-
-                recognition.onend = function() {
-                    console.log('✅ Speech recognition ended');
-                    btn.classList.remove('listening');
-                    isListening = false;
-                    
-                    if (!currentTranscript) {
-                        status.textContent = 'Aucune commande détectée. Parlez plus clairement et réessayez.';
-                        setTimeout(() => {
-                            status.textContent = 'Essayez: "Créer une campagne" ou "Nouvelle campagne"';
-                        }, 2000);
-                    }
-                };
-
-                // Start recognition
-                console.log('🎤 Starting speech recognition...');
-                recognition.start();
-                
-            } catch (error) {
-                console.error('❌ Error starting speech recognition:', error);
-                status.textContent = 'Erreur lors de l\'initialisation. Vérifiez vos paramètres de microphone.';
-                btn.classList.remove('listening');
-                alert('Erreur: ' + error.message);
-            }
-        }
-
-        function stopVoiceCommand() {
-            if (recognition) {
-                recognition.stop();
-            }
-            document.getElementById('voiceModal').style.display = 'none';
-            document.querySelector('.voice-command-btn').classList.remove('listening');
-            isListening = false;
-            currentTranscript = '';
-        }
-
-        function executeVoiceCommand() {
-            if (!currentTranscript) return;
-
-            const command = currentTranscript.toLowerCase().trim();
-            console.log('Executing command:', command);
-
-            // Parse voice commands for campaign creation
-            if (command.includes('créer') || command.includes('creer') || command.includes('nouvelle campagne') || command.includes('campagne')) {
-                parseCreateCampaignCommand(command);
-            } else if (command.includes('dashboard') || command.includes('tableau de bord') || command.includes('accueil')) {
-                window.location.href = '/';
-            } else if (command.includes('campagnes') || command.includes('liste')) {
-                window.location.href = '/campaigns';
-            } else if (command.includes('intégrations') || command.includes('integrations')) {
-                window.location.href = '/integrations';
-            } else if (command.includes('fichiers') || command.includes('files')) {
-                window.location.href = '/files';
-            } else if (command.includes('profil') || command.includes('profile')) {
-                window.location.href = '/profile';
-            } else {
-                // If no specific command recognized, try to create a campaign anyway
-                if (command.length > 3) {
-                    alert(`Commande "${command}" interprétée comme création de campagne. Redirection...`);
-                    parseCreateCampaignCommand(command);
-                } else {
-                    alert('Commande non reconnue. Essayez: "Créer une nouvelle campagne", "Aller aux campagnes", "Dashboard", etc.');
-                }
-            }
-
-            stopVoiceCommand();
-        }
-
-        function parseCreateCampaignCommand(command) {
-            // Extract campaign details from voice command
-            let campaignName = '';
-            let keywords = '';
-            let frequency = 'daily'; // default daily
-
-            // Simple parsing - can be enhanced
-            if (command.includes('pour') || command.includes('sur')) {
-                const parts = command.split(/pour|sur/);
-                if (parts.length > 1) {
-                    keywords = parts[1].trim().replace(/[.,!?]/g, '');
-                    campaignName = `Campagne ${keywords}`;
-                }
-            } else {
-                // If no specific keywords, use the whole command as keywords
-                keywords = command.replace(/créer|creer|nouvelle|campagne|une|de|veille/gi, '').trim();
-                campaignName = `Campagne vocale ${new Date().getTime()}`;
-            }
-
-            if (command.includes('horaire') || command.includes('heure') || command.includes('toutes les heures')) {
-                frequency = 'hourly';
-            } else if (command.includes('quotidien') || command.includes('jour') || command.includes('quotidienne')) {
-                frequency = 'daily';
-            } else if (command.includes('hebdomadaire') || command.includes('semaine')) {
-                frequency = 'weekly';
-            }
-
-            // Redirect to create campaign with pre-filled data
-            const params = new URLSearchParams({
-                name: campaignName || 'Nouvelle campagne vocale',
-                keywords: keywords || 'actualités',
-                frequency: frequency
-            });
+                    });
+            };
             
-            window.location.href = `/campaigns/create?${params.toString()}`;
-        }
-
-        // Close modal when clicking outside
-        window.onclick = function(event) {
-            const modal = document.getElementById('voiceModal');
-            if (event.target == modal) {
-                stopVoiceCommand();
-            }
+            window.deleteCampaign = function(campaignId) {
+                if (confirm('Supprimer cette campagne ?')) {
+                    fetch(`/campaigns/${campaignId}`, { method: 'DELETE' })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.success) {
+                                location.reload();
+                            } else {
+                                alert('Erreur lors de la suppression');
+                            }
+                        });
+                }
+            };
+            
+            window.toggleMobileMenu = function() {
+                const navLinks = document.querySelector('.nav-links');
+                if (navLinks) {
+                    navLinks.classList.toggle('active');
+                }
+            };
+            
+            window.toggleAccordion = function(accordionId) {
+                const content = document.getElementById(accordionId);
+                const header = content.previousElementSibling;
+                const toggle = header.querySelector('.accordion-toggle');
+                
+                if (content.style.display === 'block') {
+                    content.style.display = 'none';
+                    toggle.querySelector('i').setAttribute('data-feather', 'chevron-down');
+                    header.classList.remove('active');
+                } else {
+                    content.style.display = 'block';
+                    toggle.querySelector('i').setAttribute('data-feather', 'chevron-up');
+                    header.classList.add('active');
+                }
+                
+                // Refresh feather icons
+                feather.replace();
+            };
         }
     </script>
 

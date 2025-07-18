@@ -14,7 +14,11 @@ class CampaignManager:
         if os.path.exists(self.data_file):
             try:
                 with open(self.data_file, 'r', encoding='utf-8') as f:
-                    return json.load(f)
+                    data = json.load(f)
+                    # Ensure we return a list, not a dict
+                    if isinstance(data, dict):
+                        return []  # Convert empty dict to empty list
+                    return data if isinstance(data, list) else []
             except (json.JSONDecodeError, FileNotFoundError):
                 return []
         return []

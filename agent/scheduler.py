@@ -5,7 +5,7 @@ import logging
 from agent.campaign_manager import CampaignManager
 from agent.integrations import IntegrationManager
 from agent.google_sheets_manager import GoogleSheetsManager
-from agent.fetch_rss import fetch_articles_rss
+from agent.fetch_multi_source import fetch_articles_rss
 from agent.fetch_multi_source import fetch_articles_multi_source
 
 class CampaignScheduler:
@@ -66,7 +66,8 @@ class CampaignScheduler:
                 keywords, 
                 max_items=max_articles,
                 use_ai_filtering=use_ai_filtering,
-                relevance_threshold=relevance_threshold
+                relevance_threshold=relevance_threshold,
+                show_keyword_suggestions=campaign.get('keyword_expansion_enabled', False)
             )
             
             if articles:

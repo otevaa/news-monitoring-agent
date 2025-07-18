@@ -9,6 +9,10 @@ import json
 from typing import List, Dict, Optional, Tuple
 import re
 from datetime import datetime
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 class MultiProviderAIEnhancer:
     """
@@ -271,19 +275,24 @@ Answer with only a number."""
         elif self.provider in ['huggingface', 'ollama', 'anthropic']:
             return self._expand_with_analysis(original_keywords, articles)
         else:
-            return self._expand_basic(original_keywords, articles)
+            return self._expand_semantic_basic(original_keywords, articles)
     
     def _expand_with_openai(self, keywords: str, articles: List[Dict]) -> List[str]:
-        """Expand keywords using OpenAI"""
+        """Expand keywords using OpenAI with semantic understanding"""
         try:
+            # Analyze article content for semantic context
             titles = [article.get('titre', '') for article in articles[:10]]
-            combined_text = "\n".join(titles)
+            summaries = [article.get('resume', '') for article in articles[:10]]
+            combined_text = "\n".join([f"Title: {t}\nSummary: {s}" for t, s in zip(titles, summaries)])
             
-            prompt = f"""Analysez ces titres d'articles et suggérez 5 mots-clés supplémentaires liés à "{keywords}":
+            prompt = f"""Analysez ce contenu d'articles et suggérez 5 mots-clés sémantiquement liés à "{keywords}".
+            
+Utilisez la compréhension sémantique pour identifier des termes connexes, synonymes, et concepts liés qui pourraient être pertinents pour cette recherche.
 
+Contenu des articles:
 {combined_text}
 
-Répondez avec une liste séparée par des virgules."""
+Retournez uniquement les 5 mots-clés les plus pertinents, séparés par des virgules, sans explication."""
             
             model_name = "gpt-4" if "gpt4" in self.model else "gpt-3.5-turbo"
             
@@ -300,28 +309,98 @@ Répondez avec une liste séparée par des virgules."""
             
         except Exception as e:
             print(f"OpenAI keyword expansion error: {e}")
-            return self._expand_basic(keywords, articles)
+            return self._expand_semantic_basic(keywords, articles)
     
     def _expand_with_analysis(self, keywords: str, articles: List[Dict]) -> List[str]:
-        """Expand keywords using text analysis"""
-        return self._expand_basic(keywords, articles)
+        """Expand keywords using semantic text analysis"""
+        return self._expand_semantic_basic(keywords, articles)
     
-    def _expand_basic(self, keywords: str, articles: List[Dict]) -> List[str]:
-        """Basic keyword expansion"""
-        word_freq = {}
+    def _expand_semantic_basic(self, keywords: str, articles: List[Dict]) -> List[str]:
+        """Advanced semantic keyword expansion using context analysis"""
+        # Common semantic patterns and related terms
+        semantic_patterns = {
+            'intelligence artificielle': ['ia', 'ai', 'machine learning', 'deep learning', 'algorithme', 'automatisation'],
+            'ia': ['intelligence artificielle', 'ai', 'machine learning', 'deep learning', 'algorithme', 'automatisation'],
+            'santé': ['médecine', 'hôpital', 'patient', 'traitement', 'diagnostic', 'thérapie'],
+            'technologie': ['tech', 'innovation', 'numérique', 'digital', 'startup', 'développement'],
+            'finance': ['banque', 'investissement', 'économie', 'bourse', 'marché', 'fintech'],
+            'environnement': ['écologie', 'climat', 'durable', 'vert', 'pollution', 'énergie'],
+            'éducation': ['école', 'université', 'formation', 'apprentissage', 'enseignement', 'étudiant'],
+            'sport': ['football', 'basketball', 'tennis', 'jeux', 'compétition', 'équipe'],
+            'politique': ['gouvernement', 'élection', 'président', 'ministre', 'parlement', 'politique'],
+            'culture': ['art', 'musique', 'cinéma', 'livre', 'théâtre', 'festival']
+        }
+        
         original_words = set(keywords.lower().split())
+        suggested_keywords = set()
         
-        for article in articles[:10]:
+        # 1. Direct semantic matches
+        for original_word in original_words:
+            if original_word in semantic_patterns:
+                suggested_keywords.update(semantic_patterns[original_word])
+        
+        # 2. Context-based analysis from articles
+        word_context = {}
+        for article in articles[:15]:  # Analyze more articles
             title = article.get('titre', '').lower()
-            words = re.findall(r'\b\w{4,}\b', title)
+            content = article.get('resume', '').lower()
+            combined_text = f"{title} {content}"
             
-            for word in words:
-                if word not in original_words and len(word) > 3:
-                    word_freq[word] = word_freq.get(word, 0) + 1
+            # Extract meaningful phrases (2-3 words)
+            words = re.findall(r'\b\w{3,}\b', combined_text)
+            
+            for i, word in enumerate(words):
+                if word in original_words:
+                    # Look at surrounding context
+                    context_start = max(0, i-3)
+                    context_end = min(len(words), i+4)
+                    context = words[context_start:context_end]
+                    
+                    for context_word in context:
+                        if (context_word not in original_words and 
+                            len(context_word) > 3 and 
+                            context_word.isalpha()):
+                            word_context[context_word] = word_context.get(context_word, 0) + 1
         
-        # Return most frequent words
-        sorted_words = sorted(word_freq.items(), key=lambda x: x[1], reverse=True)
-        return [word for word, freq in sorted_words[:5] if freq >= 2]
+        # 3. Frequency-based filtering with semantic relevance
+        relevant_words = []
+        for word, freq in word_context.items():
+            if freq >= 2:  # Appears in at least 2 articles
+                # Check if word is semantically relevant
+                if self._is_semantically_relevant(word, keywords, articles):
+                    relevant_words.append((word, freq))
+        
+        # Sort by frequency and relevance
+        relevant_words.sort(key=lambda x: x[1], reverse=True)
+        
+        # Combine semantic matches with context analysis
+        final_suggestions = list(suggested_keywords)[:3]  # Top 3 semantic matches
+        final_suggestions.extend([word for word, _ in relevant_words[:3]])  # Top 3 context words
+        
+        return final_suggestions[:5]
+    
+    def _is_semantically_relevant(self, word: str, keywords: str, articles: List[Dict]) -> bool:
+        """Check if a word is semantically relevant to the keywords"""
+        # Simple semantic relevance check
+        stop_words = {'le', 'la', 'les', 'un', 'une', 'des', 'du', 'de', 'et', 'ou', 'mais', 'donc', 'or', 'ni', 'car', 'pour', 'par', 'avec', 'dans', 'sur', 'sous', 'vers', 'chez', 'depuis', 'pendant', 'avant', 'après', 'selon', 'sans', 'comme', 'entre', 'parmi', 'malgré', 'grâce', 'à', 'ce', 'cette', 'ces', 'son', 'sa', 'ses', 'leur', 'leurs', 'notre', 'nos', 'votre', 'vos', 'mon', 'ma', 'mes', 'ton', 'ta', 'tes', 'qui', 'que', 'quoi', 'dont', 'où', 'comment', 'pourquoi', 'quand', 'si', 'alors', 'ainsi', 'aussi', 'encore', 'déjà', 'toujours', 'jamais', 'plus', 'moins', 'très', 'trop', 'assez', 'bien', 'mal', 'mieux', 'pire', 'tout', 'tous', 'toute', 'toutes', 'quelque', 'plusieurs', 'chaque', 'autre', 'même', 'seul', 'premier', 'dernier', 'nouveau', 'nouvelle', 'ancien', 'ancienne', 'grand', 'grande', 'petit', 'petite', 'bon', 'bonne', 'mauvais', 'mauvaise', 'peut', 'être', 'avoir', 'faire', 'dire', 'aller', 'venir', 'voir', 'savoir', 'vouloir', 'pouvoir', 'devoir', 'falloir', 'year', 'years', 'today', 'yesterday', 'tomorrow', 'this', 'that', 'these', 'those', 'here', 'there', 'now', 'then', 'when', 'where', 'why', 'how', 'what', 'which', 'who', 'whom', 'whose', 'the', 'and', 'but', 'because', 'while', 'during', 'before', 'after', 'above', 'below', 'up', 'down', 'out', 'off', 'over', 'under', 'again', 'further', 'then', 'once'}
+        
+        if word in stop_words:
+            return False
+            
+        # Check if word appears in context with keywords
+        co_occurrence = 0
+        for article in articles:
+            title = article.get('titre', '').lower()
+            content = article.get('resume', '').lower()
+            combined_text = f"{title} {content}"
+            
+            if word in combined_text:
+                for keyword in keywords.lower().split():
+                    if keyword in combined_text:
+                        co_occurrence += 1
+                        break
+        
+        return co_occurrence >= 2
     
     def detect_high_priority_articles(self, articles: List[Dict], keywords: str) -> List[Dict]:
         """Detect high priority articles"""

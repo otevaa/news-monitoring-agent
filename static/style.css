@@ -174,7 +174,7 @@ body {
 /* Dashboard Grid */
 .dashboard-grid {
     display: grid;
-    grid-template-columns: 2fr 1fr;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
     gap: 2rem;
     margin-bottom: var(--space-2xl);
 }
@@ -194,6 +194,9 @@ body {
     box-shadow: var(--shadow-md);
     border: 1px solid var(--neutral-200);
     transition: all 0.2s ease;
+    min-height: 400px;
+    display: flex;
+    flex-direction: column;
 }
 
 .card:hover {
@@ -1142,6 +1145,29 @@ body {
     transition: all 0.3s ease;
     font-size: 1.6rem;
     position: relative;
+}
+
+/* Inline voice command button for forms */
+.voice-command-btn-inline {
+    background: linear-gradient(135deg, var(--primary-blue), var(--secondary-blue));
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+    transition: all 0.3s ease;
+    font-size: 1.2rem;
+    position: relative;
+}
+
+.voice-command-btn-inline:hover {
+    transform: scale(1.1);
+    box-shadow: 0 6px 20px rgba(37, 99, 235, 0.4);
 }
 
 .voice-command-btn .fallback-icon {

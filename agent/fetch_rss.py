@@ -1,8 +1,10 @@
 from urllib.parse import quote_plus
 import feedparser
-from datetime import datetime
+from datetime import datetime, timedelta
 import requests
 import re
+import time
+import json
 
 def get_real_url(google_news_url):
     """Extract the real URL from Google News redirect URL"""
@@ -60,23 +62,91 @@ def get_real_url(google_news_url):
     # If all else fails, return the original URL
     return google_news_url
 
+def expand_keywords(query):
+    """Expand keywords with synonyms and related terms for better search coverage"""
+    
+    # Dictionary of keyword expansions
+    keyword_expansions = {
+        'intelligence artificielle': ['AI', 'IA', 'machine learning', 'apprentissage automatique', 'deep learning', 'réseaux de neurones'],
+        'ai': ['intelligence artificielle', 'IA', 'machine learning', 'apprentissage automatique'],
+        'blockchain': ['crypto', 'bitcoin', 'ethereum', 'DeFi', 'NFT', 'cryptomonnaie'],
+        'startup': ['start-up', 'entrepreneur', 'financement', 'levée de fonds', 'innovation'],
+        'tech': ['technologie', 'numérique', 'digital', 'innovation', 'startup'],
+        'cybersécurité': ['sécurité informatique', 'cyber', 'piratage', 'ransomware', 'hack'],
+        'cloud': ['nuage', 'AWS', 'Azure', 'Google Cloud', 'infrastructure'],
+        'data': ['données', 'big data', 'analyse', 'analytics', 'data science'],
+        'fintech': ['finance', 'banque', 'paiement', 'néobanque', 'crypto'],
+        'mobilité': ['transport', 'véhicule électrique', 'voiture autonome', 'mobilité durable'],
+        'énergie': ['renouvelable', 'solaire', 'éolien', 'batteries', 'transition énergétique'],
+        'santé': ['medtech', 'e-santé', 'télémédecine', 'biotech', 'pharma'],
+        'industrie': ['4.0', 'robotique', 'automation', 'IoT', 'capteurs'],
+        'métaverse': ['réalité virtuelle', 'VR', 'AR', 'réalité augmentée', 'NFT'],
+        'quantum': ['quantique', 'informatique quantique', 'calcul quantique']
+    }
+    
+    words = query.lower().split()
+    expanded_terms = set(words)
+    
+    for word in words:
+        if word in keyword_expansions:
+            expanded_terms.update(keyword_expansions[word])
+    
+    # Return original query plus 2-3 most relevant expanded terms
+    additional_terms = list(expanded_terms - set(words))[:3]
+    return ' OR '.join([query] + additional_terms)
+
+def parse_entry_date(entry):
+    """Safely parse entry date from feedparser"""
+    try:
+        if hasattr(entry, 'published_parsed') and entry.published_parsed:
+            # Convert time.struct_time to datetime
+            parsed_time = entry.published_parsed
+            if isinstance(parsed_time, tuple) and len(parsed_time) >= 6:
+                return datetime(*parsed_time[:6])
+        return datetime.now()
+    except Exception:
+        return datetime.now()
+
 def fetch_articles_rss(query, max_items=25):
     if not query or query.strip() == "":
         raise ValueError("Le mot-clé ne peut pas être vide.")
 
-    query_encoded = quote_plus(query)  # gère les espaces et caractères spéciaux
+    # Expand keywords for better coverage
+    expanded_query = expand_keywords(query)
+    
+    # First, get regular Google News results
+    query_encoded = quote_plus(query)
     url = f"https://news.google.com/rss/search?q={query_encoded}&hl=fr&gl=FR&ceid=FR:fr"
     feed = feedparser.parse(url)
+    
     results = []
+    
+    # Process Google News results
     for entry in feed.entries[:max_items]:
         # Get the real URL instead of the Google News redirect
         real_url = get_real_url(entry.link)
         
+        # Parse date safely
+        pub_date = parse_entry_date(entry)
+        
         results.append({
-            "date": datetime(*entry.published_parsed[:6]).isoformat() if entry.published_parsed else datetime.now().isoformat(),
+            "date": pub_date.isoformat(),
             "source": "Google News RSS",
-            "titre": entry.title,
-            "url": real_url,  # Use the real destination URL
-            "resume": entry.summary
+            "titre": str(entry.title) if hasattr(entry, 'title') else "",
+            "url": real_url,
+            "resume": str(entry.summary) if hasattr(entry, 'summary') else ""
         })
-    return results
+    
+    # Sort by date (most recent first)
+    results.sort(key=lambda x: x['date'], reverse=True)
+    
+    # Remove duplicates based on URL
+    seen_urls = set()
+    unique_results = []
+    
+    for result in results:
+        if result['url'] not in seen_urls:
+            seen_urls.add(result['url'])
+            unique_results.append(result)
+    
+    return unique_results[:max_items]
