@@ -129,6 +129,7 @@ L'application sera accessible sur `http://localhost:5000`
    - GPT-3.5 Turbo
    - GPT-4
    - Claude 3 Haiku
+   - Deepseek avec ollama (si vous souhaitez travailler avec un modèle en local)
 3. Sauvegardez vos préférences
 
 #### Visualiser les feuilles de calcul créées
