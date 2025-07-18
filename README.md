@@ -67,10 +67,11 @@ uv pip install -r requirements.txt
 1. Dans Google Cloud Console → "APIs & Services" → "Credentials"
 2. Cliquez sur "CREATE CREDENTIALS" → "OAuth 2.0 Client IDs"
 3. Choisissez "Web application"
-4. Ajoutez les URLs de redirection :
+4. Ajoutez les URLs de redirection et choisissez les autorisations que vous voulez accorder à l'application (modifier des fichiers sheet, google drive):
    - `http://localhost:5000/oauth2callback` (pour le développement local)
 5. Téléchargez le fichier JSON et renommez-le `client_secret.json`
 6. Placez-le dans le dossier racine du projet
+7. Allez dans audience ensuite et ajoutez votre mail, puisque nous sommes en mode test.
 
 ### 4. Obtenir une clé API OpenRouter
 1. Visitez [OpenRouter](https://openrouter.ai/)
