@@ -12,6 +12,7 @@ from datetime import datetime, timedelta
 import logging
 from .fetch_multi_source import fetch_articles_multi_source
 from .campaign_manager import CampaignManager
+from .google_sheets_manager import GoogleSheetsManager
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -256,7 +257,6 @@ class AsyncCampaignManager:
         """Process articles with AI and save to spreadsheet"""
         try:
             # Use multi-source fetch
-            from .fetch_multi_source import fetch_articles_multi_source
             articles = fetch_articles_multi_source(
                 ' OR '.join(keywords), 
                 max_items=task.max_items
@@ -267,7 +267,6 @@ class AsyncCampaignManager:
                 return
 
             # Save to spreadsheet if Google Sheets is configured
-            from .google_sheets_manager import GoogleSheetsManager
             sheets_manager = GoogleSheetsManager()
             
             # Check if this campaign has a spreadsheet
