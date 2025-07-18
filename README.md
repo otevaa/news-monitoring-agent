@@ -80,7 +80,7 @@ uv pip install -r requirements.txt
 ### 5. Configurer les variables d'environnement
 ```bash
 # Créer le fichier .env
-cp .env.example .env
+touch .env
 
 # Éditer le fichier .env avec vos clés
 GOOGLE_CLIENT_ID=votre_client_id_google
