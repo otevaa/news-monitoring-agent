@@ -102,8 +102,9 @@ L'application sera accessible sur `http://localhost:5000`
 ### Démarrage et création de campagne
 
 1. **Lancement** : Ouvrez `http://localhost:5000` dans votre navigateur
-2. **Redirection automatique** : Vous serez redirigé vers la page de création de campagne
+2. **Redirection automatique** : Vous serez redirigé vers la page de création de campagne. Si vous vous connectez pour la première fois, cliquez sur integration dans le menu.
 3. **Authentification Google** : Connectez-vous avec votre compte Google pour autoriser l'accès aux Google Sheets
+4. Revenez maintenant lancer vos campagnes.
 
 ### Processus de création d'une campagne
 
