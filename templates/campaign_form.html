@@ -304,43 +304,6 @@
                         >{{ campaign.description if campaign else '' }}</textarea>
                     </div>
 
-                    <!-- AI Enhancement Options -->
-                    <div class="form-group">
-                        <label class="form-label">
-                            <i data-feather="zap"></i>
-                            Options d'amélioration par IA
-                        </label>
-                        <div class="checkbox-group">
-                            <label class="checkbox-label">
-                                <input type="checkbox" name="ai_filtering_enabled" {% if campaign and campaign.ai_filtering_enabled %}checked{% endif %}>
-                                <span class="checkbox-checkmark"></span>
-                                <div>
-                                    <strong>Filtrage par IA</strong>
-                                    <p>Filtrer les articles par pertinence automatiquement</p>
-                                </div>
-                            </label>
-                            <label class="checkbox-label">
-                                <input type="checkbox" name="keyword_expansion_enabled" {% if campaign and campaign.keyword_expansion_enabled %}checked{% endif %}>
-                                <span class="checkbox-checkmark"></span>
-                                <div>
-                                    <strong>Expansion de mots-clés</strong>
-                                    <p>Suggérer des mots-clés sémantiquement liés</p>
-                                </div>
-                            </label>
-                            <label class="checkbox-label">
-                                <input type="checkbox" name="priority_alerts_enabled" {% if campaign and campaign.priority_alerts_enabled %}checked{% endif %}>
-                                <span class="checkbox-checkmark"></span>
-                                <div>
-                                    <strong>Alertes prioritaires</strong>
-                                    <p>Détecter automatiquement les articles haute priorité</p>
-                                </div>
-                            </label>
-                        </div>
-                        <small style="color: var(--neutral-500); font-size: 0.875rem;">
-                            Ces options utilisent l'IA pour améliorer la qualité des résultats. Désactivées par défaut.
-                        </small>
-                    </div>
-
                     <div style="display: flex; gap: 1rem; justify-content: flex-end; margin-top: 2rem; padding-top: 2rem; border-top: 1px solid var(--neutral-200);">
                         <a href="/campaigns" class="btn btn-secondary">
                             <i data-feather="x"></i>

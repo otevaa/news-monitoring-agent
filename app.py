@@ -1,6 +1,6 @@
 from flask import Flask, render_template, request, redirect, session, url_for, jsonify, flash
 from agent.fetch_multi_source import fetch_articles_multi_source, fetch_articles_rss
-from agent.google_oauth import start_auth, finish_auth, get_sheets_service
+from agent.google_oauth import start_auth, finish_auth, get_sheets_service, get_user_info
 from agent.async_campaign_manager import AsyncCampaignManager
 from agent.google_sheets_manager import GoogleSheetsManager
 from agent.campaign_manager import CampaignManager
@@ -9,6 +9,9 @@ from agent.scheduler import campaign_scheduler
 from agent.user_profile_manager import UserProfileManager
 import json
 import atexit
+import os
+import sys
+import traceback
 from datetime import datetime
 from dotenv import load_dotenv
 
@@ -16,7 +19,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 app = Flask(__name__)
-app.secret_key = "ta-cle-ultra-secrete"
+app.secret_key = os.getenv('FLASK_SECRET_KEY', 'your-secret-key-change-in-production')
 
 # Initialize managers with error handling
 try:
@@ -145,14 +148,15 @@ def home():
     # Clear any lingering flash messages to prevent them from appearing on dashboard
     session.pop('_flashes', None)
     
-    # Update Google Sheets integration status
-    google_sheets_connected = sheets_manager.is_google_sheets_connected()
-    integration_manager.update_google_sheets_status(google_sheets_connected)
-    
-    # Get dashboard data
+    # Get dashboard data (without forcing Google Sheets connection)
     stats = get_dashboard_stats()
     campaigns = campaign_manager.get_recent_campaigns(limit=5)
-    integrations = get_dashboard_integrations()
+    
+    # Only check integrations if user has already authenticated
+    integrations = {
+        'google_sheets': 'credentials' in session and sheets_manager.is_google_sheets_connected(),
+        'airtable': integration_manager.is_airtable_configured()
+    }
     
     return render_template("dashboard.html", 
                          stats=stats, 
@@ -333,7 +337,6 @@ def save_campaign(campaign_id=None):
             if new_campaign_id:
                 campaign = campaign_manager.get_campaign(new_campaign_id)
                 if campaign:
-                    from agent.scheduler import campaign_scheduler
                     try:
                         # Run initial campaign with expanded keywords
                         campaign_scheduler.run_campaign(campaign)
@@ -371,16 +374,16 @@ def delete_campaign(campaign_id):
     if campaign and delete_sheet and campaign.get('spreadsheet_id'):
         # Delete the associated Google Sheet
         try:
-            from agent.google_sheets_manager import GoogleSheetsManager
-            sheets_manager = GoogleSheetsManager()
             if sheets_manager.is_google_sheets_connected():
-                # Note: Google Sheets API doesn't allow deletion of sheets via API
-                # We'll just remove the reference and log the action
-                print(f"Sheet reference removed for campaign '{campaign['name']}' (ID: {campaign.get('spreadsheet_id')})")
+                success = sheets_manager.delete_spreadsheet(campaign['spreadsheet_id'])
+                if success:
+                    print(f"Successfully deleted spreadsheet for campaign '{campaign['name']}' (ID: {campaign.get('spreadsheet_id')})")
+                else:
+                    print(f"Failed to delete spreadsheet for campaign '{campaign['name']}' (ID: {campaign.get('spreadsheet_id')})")
             else:
-                print("Google Sheets not connected - cannot delete sheet")
+                print("Google Sheets not connected - cannot delete spreadsheet")
         except Exception as e:
-            print(f"Error handling sheet deletion: {e}")
+            print(f"Error deleting spreadsheet: {e}")
     
     success = campaign_manager.delete_campaign(campaign_id)
     return jsonify({'success': success})
@@ -415,9 +418,19 @@ def disconnect_integration(integration):
 # Profile Routes
 @app.route("/profile")
 def profile():
+    # Get user email from Google OAuth session if available
+    user_email = 'user@example.com'
+    if 'credentials' in session:
+        try:
+            user_info = get_user_info()
+            if user_info:
+                user_email = user_info.get('email', 'user@example.com')
+        except Exception as e:
+            print(f"Error getting user info: {e}")
+    
     user_data = {
         'name': 'Utilisateur Demo',
-        'email': 'user@example.com',
+        'email': user_email,
         'created_at': '2024-01-01',
         'api_key': None
     }
@@ -426,7 +439,11 @@ def profile():
         'total_articles': campaign_manager.get_total_articles_count(),
         'integrations_count': integration_manager.get_active_integrations_count()
     }
-    return render_template("profile.html", user=user_data, stats=stats)
+    
+    # Get user profile for AI settings
+    user_profile = user_profile_manager.get_user_profile(user_id='default')
+    
+    return render_template("profile.html", user=user_data, stats=stats, profile=user_profile)
 
 @app.route("/profile/ai-settings")
 def profile_ai_settings():
@@ -436,8 +453,10 @@ def profile_ai_settings():
 @app.route("/profile/ai-settings", methods=["POST"])
 def save_ai_settings():
     settings = {
-        'ai_model': request.form.get('ai_model', 'openai-gpt3.5'),
-        'keyword_expansion_enabled': 'keyword_expansion_enabled' in request.form
+        'ai_model': request.form.get('ai_model', 'ollama-deepseek-r1:1.5b'),
+        'keyword_expansion_enabled': 'keyword_expansion_enabled' in request.form,
+        'ai_filtering_enabled': 'ai_filtering_enabled' in request.form,
+        'priority_alerts_enabled': 'priority_alerts_enabled' in request.form
     }
     
     success = user_profile_manager.update_user_profile(user_id='default', updates=settings)
@@ -783,7 +802,6 @@ def delete_file(file_id):
         return jsonify({'success': False, 'error': str(e)})
 
 if __name__=="__main__":
-    import sys
     port = 5000  # default port
     
     # Check for port argument

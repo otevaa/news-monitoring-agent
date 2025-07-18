@@ -3,6 +3,7 @@ import uuid
 from datetime import datetime, timedelta
 from typing import List, Dict, Optional
 import os
+from .google_sheets_manager import GoogleSheetsManager
 
 class CampaignManager:
     def __init__(self, data_file="campaigns.json"):
@@ -30,6 +31,27 @@ class CampaignManager:
                 json.dump(self.campaigns, f, indent=2, ensure_ascii=False)
         except Exception as e:
             print(f"Error saving campaigns: {e}")
+    
+    def _update_campaign_stats(self, campaign: Dict) -> Dict:
+        """Update campaign statistics with actual spreadsheet data"""
+        if campaign.get('spreadsheet_id'):
+            try:
+                sheets_manager = GoogleSheetsManager()
+                
+                # Get actual article counts from spreadsheet
+                total_articles = sheets_manager.get_spreadsheet_article_count(campaign['spreadsheet_id'])
+                articles_today = sheets_manager.get_spreadsheet_articles_today(campaign['spreadsheet_id'])
+                
+                # Update campaign stats
+                campaign['total_articles'] = total_articles
+                campaign['articles_today'] = articles_today
+                
+            except Exception as e:
+                print(f"Error updating campaign stats for {campaign['name']}: {e}")
+                # Keep existing stats if error occurs
+                pass
+        
+        return campaign
     
     def create_campaign(self, data: Dict) -> str:
         """Create a new campaign"""
@@ -78,18 +100,19 @@ class CampaignManager:
         self.campaigns = self._load_campaigns()  # Reload from file
         for campaign in self.campaigns:
             if campaign['id'] == campaign_id:
-                return campaign
+                return self._update_campaign_stats(campaign)
         return None
     
     def get_all_campaigns(self) -> List[Dict]:
         """Get all campaigns - always reload from file for fresh data"""
         self.campaigns = self._load_campaigns()  # Reload from file
-        return self.campaigns
+        return [self._update_campaign_stats(campaign) for campaign in self.campaigns]
     
     def get_active_campaigns(self) -> List[Dict]:
         """Get only active campaigns - always reload from file for fresh data"""
         self.campaigns = self._load_campaigns()  # Reload from file
-        return [c for c in self.campaigns if c['status'] == 'active']
+        active_campaigns = [c for c in self.campaigns if c['status'] == 'active']
+        return [self._update_campaign_stats(campaign) for campaign in active_campaigns]
     
     def get_recent_campaigns(self, limit: int = 5) -> List[Dict]:
         """Get recent campaigns sorted by creation date - always reload from file for fresh data"""
@@ -99,7 +122,8 @@ class CampaignManager:
             key=lambda x: x['created_at'], 
             reverse=True
         )
-        return sorted_campaigns[:limit]
+        limited_campaigns = sorted_campaigns[:limit]
+        return [self._update_campaign_stats(campaign) for campaign in limited_campaigns]
     
     def pause_campaign(self, campaign_id: str) -> bool:
         """Pause a campaign"""

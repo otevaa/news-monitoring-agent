@@ -2,6 +2,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 from datetime import datetime
 import logging
+import traceback
 from agent.campaign_manager import CampaignManager
 from agent.integrations import IntegrationManager
 from agent.google_sheets_manager import GoogleSheetsManager
@@ -120,7 +121,6 @@ class CampaignScheduler:
                 
         except Exception as e:
             self.logger.error(f"❌ Error running campaign '{campaign['name']}': {e}")
-            import traceback
             traceback.print_exc()
 
 # Global scheduler instance

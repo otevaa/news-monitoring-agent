@@ -1,0 +1,24 @@
+version: "1"
+services:
+  - type: web
+    name: newsmonitor-pro
+    env: python
+    buildCommand: |
+      curl -LsSf https://astral.sh/uv/install.sh | sh
+      source $HOME/.cargo/env
+      uv pip install -r requirements.txt
+    startCommand: gunicorn --bind 0.0.0.0:$PORT --workers 4 --timeout 60 app:app
+    envVars:
+      - key: FLASK_ENV
+        value: production
+      - key: FLASK_DEBUG
+        value: false
+      - key: PYTHON_VERSION
+        value: 3.12.0
+    scaling:
+      minInstances: 1
+      maxInstances: 10
+    disk:
+      name: newsmonitor-disk
+      size: 1GB
+      mount: /app/logs

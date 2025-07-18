@@ -4,10 +4,14 @@ Asynchronous campaign creation system for better user experience
 
 import asyncio
 import threading
+import uuid
+import time
 from typing import Dict, List, Optional, Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 import logging
+from .fetch_multi_source import fetch_articles_multi_source
+from .campaign_manager import CampaignManager
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -64,7 +68,6 @@ class AsyncCampaignManager:
         Returns:
             str: Task ID for tracking progress
         """
-        import uuid
         
         task_id = str(uuid.uuid4())
         
@@ -173,14 +176,12 @@ class AsyncCampaignManager:
             raise ValueError("User ID manquant")
         
         # Add more validation as needed
-        import time
         time.sleep(0.5)  # Simulate processing time
     
     def _check_duplicate_campaigns(self, task: CampaignCreationTask):
         """Check for duplicate campaigns"""
         # In a real implementation, this would check the database
         # For now, just simulate the check
-        import time
         time.sleep(0.5)  # Simulate database check
     
     def _expand_campaign_keywords(self, task: CampaignCreationTask) -> List[str]:
@@ -189,7 +190,6 @@ class AsyncCampaignManager:
     
     def _test_rss_feeds(self, task: CampaignCreationTask, keywords: List[str]):
         """Test RSS feeds to ensure they work"""
-        from .fetch_multi_source import fetch_articles_multi_source
         
         # Test with a subset of keywords
         test_keywords = keywords[:3]  # Test first 3 keywords
@@ -205,14 +205,12 @@ class AsyncCampaignManager:
                 logger.error(f"Error testing RSS feed for keyword {keyword}: {e}")
                 # Don't fail the entire process for RSS test failures
         
-        import time
         time.sleep(1)  # Simulate testing time
     
     def _create_campaign_in_db(self, task: CampaignCreationTask, keywords: List[str]) -> str:
         """Create campaign in database"""
         # Import the campaign manager to save the campaign
         try:
-            from .campaign_manager import CampaignManager
             campaign_manager = CampaignManager()
             
             # Create campaign data structure
@@ -246,14 +244,12 @@ class AsyncCampaignManager:
         except Exception as e:
             logger.error(f"Error creating campaign in database: {e}")
             # Fallback to UUID generation
-            import uuid
             return str(uuid.uuid4())
     
     def _setup_campaign_monitoring(self, task: CampaignCreationTask, campaign_id: str):
         """Setup monitoring for the campaign"""
         # In a real implementation, this would setup the monitoring system
         # For now, just simulate
-        import time
         time.sleep(0.3)
     
     def _process_campaign_articles(self, task: CampaignCreationTask, keywords: List[str]):
@@ -308,7 +304,6 @@ class AsyncCampaignManager:
                 self.campaigns[task.campaign_id]['status'] = 'failed'
                 self.campaigns[task.campaign_id]['error'] = str(e)
         
-        import time
         time.sleep(2)  # Simulate processing time
     
     def _update_progress(self, task_id: str, progress: int, message: str):

@@ -8,6 +8,7 @@ import tweepy
 from dotenv import load_dotenv
 from typing import List, Dict, Optional, Any
 from .ai_keyword_expander import create_keyword_expander
+from .user_profile_manager import UserProfileManager
 
 # Load environment variables
 load_dotenv()
@@ -65,9 +66,19 @@ def fetch_articles_rss(query, max_items=25):
     return unique_results[:max_items]
 
 def get_real_url(google_news_url):
-    """Extract the real URL from Google News redirect URL"""
+    """Extract the raw URL from Google News redirect URL or HTML tags"""
     try:
-        # First, try to extract from the URL parameters
+        # If it's already a clean URL, return it
+        if not google_news_url.startswith('https://news.google.com'):
+            # Extract URL from HTML tag if present
+            if '<a href="' in google_news_url:
+                url_match = re.search(r'href="([^"]*)"', google_news_url)
+                if url_match:
+                    return url_match.group(1).strip()
+            # Return as-is if no HTML tag found
+            return google_news_url.strip()
+        
+        # Handle Google News URLs
         parsed = urlparse(google_news_url)
         
         # Check if it's a Google News URL with a 'url' parameter
@@ -76,41 +87,13 @@ def get_real_url(google_news_url):
             if 'url' in query_params:
                 return unquote(query_params['url'][0])
         
-        # For articles/CAI* type URLs, try a different approach
-        if '/articles/' in google_news_url:
-            # Try to follow redirects with a proper user agent
-            headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-            }
-            
-            response = requests.get(google_news_url, headers=headers, timeout=5, allow_redirects=False)
-            
-            # Check for Location header in redirect
-            if response.status_code in [301, 302, 303, 307, 308]:
-                location = response.headers.get('Location')
-                if location and 'news.google.com' not in location:
-                    return location
-            
-            # If we get a 200, parse the content for the actual link
-            if response.status_code == 200:
-                # Look for the actual article link in various patterns
-                patterns = [
-                    r'<a[^>]*data-n-href="([^"]+)"',
-                    r'window\.location\.href\s*=\s*["\']([^"\']+)["\']',
-                    r'location\.replace\(["\']([^"\']+)["\']\)',
-                    r'<meta[^>]*http-equiv="refresh"[^>]*content="[^;]*;\s*url=([^"]*)"'
-                ]
-                
-                for pattern in patterns:
-                    match = re.search(pattern, response.text, re.IGNORECASE)
-                    if match:
-                        return match.group(1)
-        
-        # If no extraction method works, return the original URL
+        # For complex redirects, just return the original URL
+        # The user requested not to waste time on complex decoding
         return google_news_url
         
     except Exception as e:
-        print(f"Error extracting real URL: {e}")
+        print(f"Error extracting URL: {e}")
+        # Return original URL if extraction fails
         return google_news_url
 
 def fetch_twitter_articles(keywords, max_items=10):
@@ -307,10 +290,10 @@ def fetch_articles_multi_source(
         try:
             if ai_enhancer is None:
                 # Get user profile and create AI enhancer with user-preferred model
-                from .user_profile_manager import UserProfileManager
                 profile_manager = UserProfileManager()
                 user_profile = profile_manager.get_user_profile()
-                ai_enhancer = create_keyword_expander(user_profile)
+                ai_model = user_profile.get('ai_model', 'openrouter-auto')
+                ai_enhancer = create_keyword_expander(ai_model)
             french_words, english_words = ai_enhancer.expand_keywords(keywords)
             expanded_keywords = french_words + english_words
             if expanded_keywords:
@@ -332,10 +315,10 @@ def fetch_articles_multi_source(
         try:
             if ai_enhancer is None:
                 # Get user profile and create AI enhancer with user-preferred model
-                from .user_profile_manager import UserProfileManager
                 profile_manager = UserProfileManager()
                 user_profile = profile_manager.get_user_profile()
-                ai_enhancer = create_keyword_expander(user_profile)
+                ai_model = user_profile.get('ai_model', 'openrouter-auto')
+                ai_enhancer = create_keyword_expander(ai_model)
             french_words, english_words = ai_enhancer.expand_keywords(keywords)
             expanded_keywords = french_words + english_words
             if expanded_keywords:

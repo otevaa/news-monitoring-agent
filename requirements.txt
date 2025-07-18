@@ -12,6 +12,7 @@ schedule
 APScheduler
 openai
 transformers
-torch
 anthropic
 tweepy
+cryptography
+gunicorn

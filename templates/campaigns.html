@@ -253,7 +253,7 @@
                 
                 let deleteSheet = false;
                 if (hasGoogleSheet) {
-                    deleteSheet = confirm('Cette campagne a une feuille Google associée. Voulez-vous également supprimer la référence à cette feuille ?');
+                    deleteSheet = confirm('Cette campagne a une feuille Google Sheets associée. Voulez-vous également supprimer définitivement cette feuille de votre Google Drive ? (Cette action est irréversible)');
                 }
                 
                 fetch(`/campaigns/${campaignId}`, { 

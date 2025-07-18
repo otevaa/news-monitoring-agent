@@ -7,15 +7,16 @@ import os
 import re
 from typing import List, Dict, Optional, Tuple
 from datetime import datetime, timedelta
+from .secure_credentials import GoogleCredentialsManager
 
 class GoogleSheetsManager:
     def __init__(self):
         self.sheets_data_file = "google_sheets_data.json"
-        self.credentials_file = "user_credentials.json"
+        self.credentials_manager = GoogleCredentialsManager()
         self.sheets_data = self._load_sheets_data()
     
     def _get_credentials(self) -> Optional[Dict]:
-        """Get credentials from session or file"""
+        """Get credentials from session or secure storage"""
         # First try to get from Flask session
         try:
             if "credentials" in session:
@@ -24,15 +25,8 @@ class GoogleSheetsManager:
             # We're outside of Flask application context (e.g., in scheduler)
             pass
         
-        # Fall back to reading from file
-        if os.path.exists(self.credentials_file):
-            try:
-                with open(self.credentials_file, 'r') as f:
-                    return json.load(f)
-            except Exception as e:
-                print(f"Error reading credentials from file: {e}")
-        
-        return None
+        # Fall back to secure storage
+        return self.credentials_manager.get_user_credentials()
     
     def _load_sheets_data(self) -> Dict:
         """Load Google Sheets data from JSON file"""
@@ -248,9 +242,9 @@ class GoogleSheetsManager:
             return False
         
         try:
-            # Filter articles to only include last 3 days
+            # Filter articles to only include last 2 days
             today = datetime.now().date()
-            three_days_ago = today - timedelta(days=3)
+            three_days_ago = today - timedelta(days=2)
             
             filtered_articles = []
             for article in articles:
@@ -269,7 +263,7 @@ class GoogleSheetsManager:
                     filtered_articles.append(article)
             
             if not filtered_articles:
-                print(f"No recent articles (last 3 days) to save for campaign '{campaign_name}'")
+                print(f"No recent articles (last 2 days) to save for campaign '{campaign_name}'")
                 return True
             
             # Check for existing articles to avoid duplicates
@@ -459,14 +453,74 @@ class GoogleSheetsManager:
         """Get information about a specific spreadsheet"""
         return self.sheets_data.get(spreadsheet_id)
     
+    def get_spreadsheet_article_count(self, spreadsheet_id: str) -> int:
+        """Get the actual number of articles (rows) in a spreadsheet"""
+        sheets_service = self.get_sheets_service()
+        if not sheets_service:
+            return 0
+        
+        try:
+            # Get all data from the spreadsheet
+            result = sheets_service.spreadsheets().values().get(
+                spreadsheetId=spreadsheet_id,
+                range='A:A'  # Get all rows in column A
+            ).execute()
+            
+            values = result.get('values', [])
+            # Subtract 1 for the header row
+            article_count = max(0, len(values) - 1)
+            
+            return article_count
+        except HttpError as e:
+            print(f"Error getting spreadsheet article count: {e}")
+            return 0
+        except Exception as e:
+            print(f"Error getting spreadsheet article count: {e}")
+            return 0
+    
+    def get_spreadsheet_articles_today(self, spreadsheet_id: str) -> int:
+        """Get the number of articles added today to a spreadsheet"""
+        sheets_service = self.get_sheets_service()
+        if not sheets_service:
+            return 0
+        
+        try:
+            # Get all data from the spreadsheet
+            result = sheets_service.spreadsheets().values().get(
+                spreadsheetId=spreadsheet_id,
+                range='A:A'  # Get all rows in column A (dates)
+            ).execute()
+            
+            values = result.get('values', [])
+            if len(values) <= 1:  # Only header or empty
+                return 0
+            
+            today = datetime.now().date()
+            articles_today = 0
+            
+            # Skip header row and check dates
+            for row in values[1:]:
+                if row and row[0]:  # If there's a date value
+                    try:
+                        # Parse article date
+                        article_date = datetime.fromisoformat(row[0].replace('Z', '')).date()
+                        if article_date == today:
+                            articles_today += 1
+                    except:
+                        # Skip if date parsing fails
+                        continue
+            
+            return articles_today
+        except HttpError as e:
+            print(f"Error getting today's articles count: {e}")
+            return 0
+        except Exception as e:
+            print(f"Error getting today's articles count: {e}")
+            return 0
+
     def is_google_sheets_connected(self) -> bool:
         """Check if Google Sheets is connected with valid credentials"""
-        creds_data = self._get_credentials()
-        if not creds_data:
-            return False
-        
-        required_fields = ['token', 'refresh_token', 'token_uri', 'client_id', 'client_secret']
-        return all(field in creds_data for field in required_fields)
+        return self.credentials_manager.has_valid_credentials()
     
     def delete_spreadsheet(self, spreadsheet_id: str) -> bool:
         """Delete a spreadsheet"""
