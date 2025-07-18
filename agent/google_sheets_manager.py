@@ -4,8 +4,9 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 import json
 import os
+import re
 from typing import List, Dict, Optional, Tuple
-from datetime import datetime
+from datetime import datetime, timedelta
 
 class GoogleSheetsManager:
     def __init__(self):
@@ -247,9 +248,6 @@ class GoogleSheetsManager:
             return False
         
         try:
-            from datetime import datetime, timedelta
-            import re
-            
             # Filter articles to only include last 3 days
             today = datetime.now().date()
             three_days_ago = today - timedelta(days=3)

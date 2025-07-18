@@ -1,36 +1,16 @@
-from urllib.parse import quote_plus
+from urllib.parse import quote_plus, urlparse, parse_qs, unquote
 import feedparser
 from datetime import datetime, timedelta
 import requests
 import re
 import os
+import tweepy
 from dotenv import load_dotenv
-from .multi_ai_enhancer import create_ai_enhancer
+from typing import List, Dict, Optional, Any
+from .ai_keyword_expander import create_keyword_expander
 
 # Load environment variables
 load_dotenv()
-
-def expand_keywords(query):
-    """Expand keywords with synonyms and related terms"""
-    if not query:
-        return query
-    
-    # Basic keyword expansion (simple version)
-    synonyms = {
-        'AI': ['intelligence artificielle', 'IA', 'machine learning', 'apprentissage automatique'],
-        'technologie': ['tech', 'numérique', 'innovation', 'digital'],
-        'entreprise': ['société', 'compagnie', 'business', 'startup'],
-        'marché': ['secteur', 'industrie', 'économie', 'commerce'],
-        'développement': ['création', 'innovation', 'évolution', 'progrès']
-    }
-    
-    expanded = query
-    for word, alternatives in synonyms.items():
-        if word.lower() in query.lower():
-            expanded += ' ' + ' '.join(alternatives)
-    
-    return expanded
-
 def parse_entry_date(entry):
     """Parse entry date from RSS feed"""
     try:
@@ -47,9 +27,6 @@ def fetch_articles_rss(query, max_items=25):
     """Fetch articles from RSS sources (Google News)"""
     if not query or query.strip() == "":
         raise ValueError("Le mot-clé ne peut pas être vide.")
-    
-    # Expand keywords for better coverage
-    expanded_query = expand_keywords(query)
     
     # Get Google News results
     query_encoded = quote_plus(query)
@@ -70,8 +47,7 @@ def fetch_articles_rss(query, max_items=25):
             "date": pub_date.isoformat(),
             "source": "Google News RSS",
             "titre": str(entry.title) if hasattr(entry, 'title') else "",
-            "url": real_url,
-            "resume": str(entry.summary) if hasattr(entry, 'summary') else ""
+            "url": real_url
         })
     
     # Sort by date (most recent first)
@@ -90,9 +66,6 @@ def fetch_articles_rss(query, max_items=25):
 
 def get_real_url(google_news_url):
     """Extract the real URL from Google News redirect URL"""
-    import re
-    from urllib.parse import urlparse, parse_qs, unquote
-    
     try:
         # First, try to extract from the URL parameters
         parsed = urlparse(google_news_url)
@@ -140,114 +113,54 @@ def get_real_url(google_news_url):
         print(f"Error extracting real URL: {e}")
         return google_news_url
 
-def fetch_articles_multi_source(keywords, max_items=25, use_ai_filtering=True, relevance_threshold=70, show_keyword_suggestions=True):
+def fetch_twitter_articles(keywords, max_items=10):
     """
-    Fetch articles from multiple sources: Google News API, RSS feeds, and X/Twitter API
-    With AI enhancement features
+    Fetch articles from X/Twitter API
     """
-    all_articles = []
-    items_per_source = max(1, max_items // 3)  # Divide among 3 sources
-    ai_enhancer = None  # Initialize AI enhancer variable
+    articles = []
     
-    print(f"Fetching articles for keywords: {keywords}")
-    if use_ai_filtering:
-        print(f"AI filtering enabled with relevance threshold: {relevance_threshold}")
-    
-    # Prioritize RSS articles first, then social media articles
-    rss_articles = []
-    social_articles = []
-    
-    # 1. Google News RSS (highest priority)
-    print("Fetching from Google News...")
-    news_articles = fetch_google_news_articles(keywords, max_items=items_per_source)
-    rss_articles.extend(news_articles)
-    print(f"Google News: {len(news_articles)} articles")
-    
-    # 2. RSS feeds (from various news sources)
-    print("Fetching from RSS feeds...")
-    rss_feed_articles = fetch_articles_rss(keywords, max_items=items_per_source)
-    rss_articles.extend(rss_feed_articles)
-    print(f"RSS Feeds: {len(rss_feed_articles)} articles")
-    
-    # 3. X/Twitter posts (social media)
-    print("Fetching from X/Twitter...")
-    twitter_articles = fetch_x_articles(keywords, max_items=items_per_source)
-    social_articles.extend(twitter_articles)
-    print(f"X/Twitter: {len(twitter_articles)} articles")
-    
-    # Combine with RSS articles first, then social media
-    all_articles = rss_articles + social_articles
-    print(f"Total articles collected before AI processing: {len(all_articles)}")
-    print(f"  - RSS articles: {len(rss_articles)}")
-    print(f"  - Social media articles: {len(social_articles)}")
-    
-    # AI Enhancement: Filter by relevance score
-    if use_ai_filtering and all_articles:
-        print("Applying AI relevance filtering...")
-        try:
-            # Create AI enhancer instance
-            if ai_enhancer is None:
-                ai_enhancer = create_ai_enhancer()
-            filtered_articles, filter_stats = ai_enhancer.filter_articles_by_relevance(
-                all_articles, keywords, relevance_threshold
-            )
-            all_articles = filtered_articles
-            print(f"AI filtering complete: {len(all_articles)} articles remaining")
-        except Exception as e:
-            print(f"AI filtering failed, using all articles: {e}")
-    
-    # AI Enhancement: Detect high-priority articles
-    if all_articles:
-        print("Detecting high-priority articles...")
-        try:
-            if ai_enhancer is None:
-                ai_enhancer = create_ai_enhancer()
-            priority_articles = ai_enhancer.detect_high_priority_articles(all_articles, keywords)
-            if priority_articles:
-                print(f"Found {len(priority_articles)} high-priority articles")
-                # Mark priority articles
-                priority_urls = {article['url'] for article in priority_articles}
-                for article in all_articles:
-                    if article.get('url') in priority_urls:
-                        article['is_priority'] = True
-        except Exception as e:
-            print(f"Priority detection failed: {e}")
-    
-    # AI Enhancement: Suggest keyword expansion (only if enabled)
-    if show_keyword_suggestions and all_articles and len(all_articles) >= 5:
-        print("Generating keyword expansion suggestions...")
-        try:
-            if ai_enhancer is None:
-                ai_enhancer = create_ai_enhancer()
-            expanded_keywords = ai_enhancer.expand_keywords(keywords, all_articles)
-            if expanded_keywords:
-                print(f"Suggested additional keywords: {', '.join(expanded_keywords)}")
-                # Store suggestions in a special article for display
-                suggestion_article = {
-                    'titre': f"💡 Mots-clés suggérés: {', '.join(expanded_keywords[:3])}{'...' if len(expanded_keywords) > 3 else ''}",
-                    'url': '#keyword-suggestions',
-                    'source': 'AI Suggestions',
-                    'resume': f"L'IA suggère d'ajouter ces mots-clés: {', '.join(expanded_keywords)}",
-                    'date': datetime.now().isoformat(),
-                    'is_suggestion': True,
-                    'suggested_keywords': expanded_keywords
+    try:
+        # Twitter API credentials
+        consumer_key = os.getenv('TWITTER_CONSUMER_KEY')
+        consumer_secret = os.getenv('TWITTER_CONSUMER_SECRET')
+        access_token = os.getenv('TWITTER_ACCESS_TOKEN')
+        access_token_secret = os.getenv('TWITTER_ACCESS_TOKEN_SECRET')
+        
+        if not all([consumer_key, consumer_secret, access_token, access_token_secret]):
+            print("Twitter API credentials not found. Skipping Twitter articles.")
+            return articles
+        
+        # Authenticate with Twitter API
+        auth = tweepy.OAuth1UserHandler(
+            consumer_key, consumer_secret,
+            access_token, access_token_secret
+        )
+        
+        api = tweepy.API(auth)
+        
+        # Search for tweets
+        tweets = tweepy.Cursor(api.search_tweets, q=keywords, lang='fr', result_type='recent').items(max_items)
+        
+        for tweet in tweets:
+            try:
+                article = {
+                    'titre': tweet.text[:100] + '...' if len(tweet.text) > 100 else tweet.text,
+                    'url': f"https://twitter.com/user/status/{tweet.id}",
+                    'source': f"Twitter - @{tweet.user.screen_name}",
+                    'date': tweet.created_at.isoformat(),
+                    'resume': tweet.text
                 }
-                all_articles.insert(0, suggestion_article)  # Add at top
-        except Exception as e:
-            print(f"Keyword expansion failed: {e}")
-    elif all_articles and len(all_articles) >= 5:
-        # Still generate suggestions for logging, but don't add to articles
-        try:
-            if ai_enhancer is None:
-                ai_enhancer = create_ai_enhancer()
-            expanded_keywords = ai_enhancer.expand_keywords(keywords, all_articles)
-            if expanded_keywords:
-                print(f"Suggested additional keywords: {', '.join(expanded_keywords)}")
-        except Exception as e:
-            print(f"Keyword expansion failed: {e}")
+                articles.append(article)
+                
+            except Exception as e:
+                print(f"Error processing tweet: {e}")
+                continue
+                
+    except Exception as e:
+        print(f"Error fetching Twitter articles: {e}")
+        return []
     
-    # Return limited number of articles
-    return all_articles[:max_items]
+    return articles
 
 def fetch_google_news_articles(keywords, max_items=25):
     """Fetch articles from Google News RSS feed"""
@@ -285,7 +198,6 @@ def fetch_google_news_articles(keywords, max_items=25):
                     'titre': entry.title,
                     'url': real_url,
                     'source': 'Google News',
-                    'resume': entry.summary if hasattr(entry, 'summary') else entry.title,
                     'date': pub_date.isoformat(),
                     'auteur': getattr(entry, 'author', 'Unknown')
                 }
@@ -318,15 +230,13 @@ def fetch_x_articles(keywords, max_items=5):
             return []
         
         try:
-            import tweepy
-            
             # Create API instance
-            auth = tweepy.OAuthHandler(api_key, api_secret)
+            auth = tweepy.OAuthHandler(api_key, api_secret)  # type: ignore
             auth.set_access_token(access_token, access_token_secret)
-            api = tweepy.API(auth, wait_on_rate_limit=True)
+            api = tweepy.API(auth, wait_on_rate_limit=True)  # type: ignore
             
             # Search for tweets
-            tweets = tweepy.Cursor(api.search_tweets, 
+            tweets = tweepy.Cursor(api.search_tweets,  # type: ignore 
                                  q=keywords, 
                                  lang="fr", 
                                  result_type="recent",
@@ -337,15 +247,11 @@ def fetch_x_articles(keywords, max_items=5):
                     'titre': tweet.full_text[:100] + "..." if len(tweet.full_text) > 100 else tweet.full_text,
                     'url': f"https://twitter.com/{tweet.user.screen_name}/status/{tweet.id}",
                     'source': 'Twitter/X',
-                    'resume': tweet.full_text,
                     'date': tweet.created_at.isoformat(),
                     'auteur': tweet.user.screen_name
                 }
                 articles.append(article)
                 
-        except ImportError:
-            print("Tweepy not installed. Install with: pip install tweepy")
-            return []
         except Exception as e:
             print(f"Error with X API: {e}")
             return []
@@ -360,3 +266,82 @@ def fetch_x_articles(keywords, max_items=5):
 def fetch_articles_from_google_news(keywords, max_items=25):
     """Backward compatibility wrapper"""
     return fetch_google_news_articles(keywords, max_items)
+
+def fetch_articles_multi_source(
+    keywords: str,
+    max_items: int = 25,
+    show_keyword_suggestions: bool = True,
+    campaigns: Optional[List[Dict]] = None,
+    ai_enhancer: Optional[Any] = None
+) -> List[Dict]:
+    """
+    Fetch articles from multiple sources (RSS, social media)
+    
+    Args:
+        keywords: Search keywords
+        max_items: Maximum number of articles to return
+        show_keyword_suggestions: Whether to show AI keyword suggestions
+        campaigns: List of campaign configurations
+        ai_enhancer: Optional AI enhancer instance
+        
+    Returns:
+        List of article dictionaries
+    """
+    print(f"Fetching articles for keywords: {keywords}")
+    
+    # Fetch from RSS sources (Google News)
+    rss_articles = fetch_articles_rss(keywords, max_items)
+    
+    # Fetch from social media sources
+    social_articles = fetch_twitter_articles(keywords, max_items=10)
+    
+    # Combine with RSS articles first, then social media
+    all_articles = rss_articles + social_articles
+    print(f"Total articles collected: {len(all_articles)}")
+    print(f"  - RSS articles: {len(rss_articles)}")
+    print(f"  - Social media articles: {len(social_articles)}")
+    
+    # AI Enhancement: Suggest keyword expansion (only if enabled)
+    if show_keyword_suggestions and all_articles and len(all_articles) >= 5:
+        print("Generating keyword expansion suggestions...")
+        try:
+            if ai_enhancer is None:
+                # Get user profile and create AI enhancer with user-preferred model
+                from .user_profile_manager import UserProfileManager
+                profile_manager = UserProfileManager()
+                user_profile = profile_manager.get_user_profile()
+                ai_enhancer = create_keyword_expander(user_profile)
+            french_words, english_words = ai_enhancer.expand_keywords(keywords)
+            expanded_keywords = french_words + english_words
+            if expanded_keywords:
+                print(f"Suggested additional keywords: {', '.join(expanded_keywords)}")
+                # Store suggestions in a special article for display
+                suggestion_article = {
+                    'titre': f"💡 Mots-clés suggérés: {', '.join(expanded_keywords[:3])}{'...' if len(expanded_keywords) > 3 else ''}",
+                    'url': '#keyword-suggestions',
+                    'source': 'AI Suggestions',
+                    'date': datetime.now().isoformat(),
+                    'is_suggestion': True,
+                    'suggested_keywords': expanded_keywords
+                }
+                all_articles.insert(0, suggestion_article)  # Add at top
+        except Exception as e:
+            print(f"Keyword expansion failed: {e}")
+    elif all_articles and len(all_articles) >= 5:
+        # Still generate suggestions for logging, but don't add to articles
+        try:
+            if ai_enhancer is None:
+                # Get user profile and create AI enhancer with user-preferred model
+                from .user_profile_manager import UserProfileManager
+                profile_manager = UserProfileManager()
+                user_profile = profile_manager.get_user_profile()
+                ai_enhancer = create_keyword_expander(user_profile)
+            french_words, english_words = ai_enhancer.expand_keywords(keywords)
+            expanded_keywords = french_words + english_words
+            if expanded_keywords:
+                print(f"Suggested additional keywords: {', '.join(expanded_keywords)}")
+        except Exception as e:
+            print(f"Keyword expansion failed: {e}")
+    
+    # Return limited number of articles
+    return all_articles[:max_items]

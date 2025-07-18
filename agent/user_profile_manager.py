@@ -36,7 +36,6 @@ class UserProfileManager:
         """Get default profile settings"""
         return {
             'ai_model': 'openai-gpt3.5',
-            'relevance_threshold': 70,
             'ai_filtering_enabled': True,
             'keyword_expansion_enabled': True,
             'priority_alerts_enabled': True,
@@ -68,7 +67,6 @@ class UserProfileManager:
         profile = self.get_user_profile(user_id)
         return {
             'model': profile.get('ai_model', 'openai-gpt3.5'),
-            'relevance_threshold': profile.get('relevance_threshold', 70),
             'filtering_enabled': profile.get('ai_filtering_enabled', True),
             'keyword_expansion_enabled': profile.get('keyword_expansion_enabled', True),
             'priority_alerts_enabled': profile.get('priority_alerts_enabled', True)

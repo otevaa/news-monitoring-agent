@@ -7,7 +7,6 @@ from agent.campaign_manager import CampaignManager
 from agent.integrations import IntegrationManager
 from agent.scheduler import campaign_scheduler
 from agent.user_profile_manager import UserProfileManager
-from agent.multi_ai_enhancer import create_ai_enhancer
 import json
 import atexit
 from datetime import datetime
@@ -103,10 +102,10 @@ except Exception as e:
     class FallbackUserProfileManager:
         def get_user_profile(self, user_id='default'): return {}
         def update_user_profile(self, user_id='default', data=None, updates=None): return False
-        def get_ai_model(self): return 'openai-gpt3.5'
+        def get_ai_model(self): return 'ollama-deepseek-r1:1.5b'
         def set_ai_model(self, model): return False
-        def get_relevance_threshold(self): return 70
-        def set_relevance_threshold(self, threshold): return False
+        def get_priority_alerts(self): return False
+        def set_priority_alerts(self, enabled): return False
         def generate_api_key(self): return 'fallback-key'
         def get_api_key(self): return 'fallback-key'
         def regenerate_api_key(self): return 'fallback-key'
@@ -177,7 +176,7 @@ def veille():
                              integrations=integrations)
 
     try:
-        articles = fetch_articles_multi_source(query, max_items=25, use_ai_filtering=False, show_keyword_suggestions=False)
+        articles = fetch_articles_multi_source(query, max_items=25, show_keyword_suggestions=False)
     except Exception as e:
         print(f"Error with multi-source fetch, falling back to RSS: {e}")
         articles = fetch_articles_rss(query)
@@ -257,6 +256,7 @@ def save_campaign(campaign_id=None):
         # Get user AI preferences
         user_profile = user_profile_manager.get_user_profile(user_id='default')
         
+        # Campaign data
         data = {
             'name': request.form.get('name', '').strip(),
             'keywords': request.form.get('keywords', '').strip(),
@@ -266,12 +266,11 @@ def save_campaign(campaign_id=None):
             'description': request.form.get('description', '').strip(),
             # AI Enhancement Options - now using defaults from user profile
             'ai_filtering_enabled': request.form.get('ai_filtering_enabled', 'false').lower() == 'true',
-            'relevance_threshold': user_profile.get('relevance_threshold', 70),
             'keyword_expansion_enabled': request.form.get('keyword_expansion_enabled', 'false').lower() == 'true',
             'priority_alerts_enabled': request.form.get('priority_alerts_enabled', 'false').lower() == 'true',
-            'ai_model': user_profile.get('ai_model', 'openai-gpt3.5')
+            'ai_model': user_profile.get('ai_model', 'ollama-deepseek-r1:1.5b')
         }
-        
+
         # Add debug logging
         print(f"DEBUG: Form data received:")
         print(f"  Name: '{data['name']}'")
@@ -330,14 +329,15 @@ def save_campaign(campaign_id=None):
                     print(f"Error setting up Google Sheets for campaign: {e}")
                     flash("Campagne créée, mais erreur lors de la configuration de Google Sheets.", 'warning')
             
-            # Run initial campaign fetch
+            # Step 2: Initial campaign fetch with expanded keywords
             if new_campaign_id:
                 campaign = campaign_manager.get_campaign(new_campaign_id)
                 if campaign:
                     from agent.scheduler import campaign_scheduler
                     try:
+                        # Run initial campaign with expanded keywords
                         campaign_scheduler.run_campaign(campaign)
-                        flash("Campagne créée avec succès ! Articles initiaux récupérés.", 'success')
+                        flash("Campagne créée avec succès ! Articles initiaux récupérés avec mots-clés étendus.", 'success')
                     except Exception as e:
                         print(f"Error running initial campaign fetch: {e}")
                         flash("Campagne créée avec succès ! Erreur lors de la récupération initiale des articles.", 'warning')
@@ -437,10 +437,7 @@ def profile_ai_settings():
 def save_ai_settings():
     settings = {
         'ai_model': request.form.get('ai_model', 'openai-gpt3.5'),
-        'relevance_threshold': int(request.form.get('relevance_threshold', 70)),
-        'ai_filtering_enabled': 'ai_filtering_enabled' in request.form,
-        'keyword_expansion_enabled': 'keyword_expansion_enabled' in request.form,
-        'priority_alerts_enabled': 'priority_alerts_enabled' in request.form
+        'keyword_expansion_enabled': 'keyword_expansion_enabled' in request.form
     }
     
     success = user_profile_manager.update_user_profile(user_id='default', updates=settings)
@@ -453,47 +450,8 @@ def save_ai_settings():
         else:
             flash('Erreur lors de la sauvegarde des paramètres IA.', 'error')
         
-        # Stay on the same page instead of redirecting
-        return render_template('profile_ai_settings.html', 
-                             user_profile=user_profile_manager.get_user_profile(user_id='default'),
-                             settings_saved=success)
-
-@app.route("/api/test-ai-model", methods=["POST"])
-def test_ai_model():
-    try:
-        data = request.get_json()
-        model = data.get('model', 'openai-gpt3.5')
-        
-        # Create AI enhancer with specified model
-        ai_enhancer = create_ai_enhancer(model=model)
-        
-        # Test with a sample article
-        test_article = {
-            'titre': 'Test d\'intelligence artificielle pour l\'analyse d\'articles',
-            'resume': 'Article test pour vérifier le fonctionnement du modèle IA'
-        }
-        
-        import time
-        start_time = time.time()
-        
-        # Test scoring
-        score = ai_enhancer.score_article_relevance(test_article, 'intelligence artificielle, test')
-        
-        end_time = time.time()
-        
-        return jsonify({
-            'success': True,
-            'model': model,
-            'score': score,
-            'time': round((end_time - start_time) * 1000, 2),
-            'provider': ai_enhancer.provider
-        })
-        
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        })
+        # Redirect to profile page after successful save
+        return redirect(url_for('profile'))
 
 # API Routes
 @app.route("/api/preview", methods=["POST"])
@@ -502,16 +460,10 @@ def api_preview():
     keywords = data.get('keywords', '')
     
     try:
-        # AI filtering disabled by default for preview
-        use_ai_filtering = data.get('ai_filtering_enabled', False)
-        relevance_threshold = data.get('relevance_threshold', 70)
-        
         try:
             articles = fetch_articles_multi_source(
                 keywords, 
                 max_items=25, 
-                use_ai_filtering=use_ai_filtering,
-                relevance_threshold=relevance_threshold,
                 show_keyword_suggestions=False  # Don't show suggestions in preview
             )
         except Exception as e:

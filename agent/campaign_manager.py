@@ -133,13 +133,14 @@ class CampaignManager:
                 return True
         return False
     
-    def update_campaign_stats(self, campaign_id: str, articles_count: int):
+    def update_campaign_stats(self, campaign_id: str, articles_count: int, success_count: int = 0):
         """Update campaign statistics after fetching articles"""
         self.campaigns = self._load_campaigns()  # Reload from file for fresh data
         for campaign in self.campaigns:
             if campaign['id'] == campaign_id:
                 campaign['total_articles'] = campaign.get('total_articles', 0) + articles_count
                 campaign['last_check'] = datetime.now().isoformat()
+                campaign['last_execution'] = datetime.now().isoformat()
                 
                 # Update today's count if it's the same day
                 today = datetime.now().date()

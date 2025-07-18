@@ -857,6 +857,17 @@ body {
     font-weight: 600;
 }
 
+.campaign-frequency-with-clock {
+    display: flex;
+    align-items: center;
+    background: rgba(255, 255, 255, 0.1);
+    color: inherit;
+    padding: 0.25rem 0.5rem;
+    border-radius: var(--radius-sm);
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
 .campaign-frequency {
     background: rgba(255, 255, 255, 0.1);
     color: inherit;
@@ -867,6 +878,10 @@ body {
 }
 
 .accordion-header.active .campaign-frequency {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.accordion-header.active .campaign-frequency-with-clock {
     background: rgba(255, 255, 255, 0.2);
 }
 
@@ -893,13 +908,42 @@ body {
 }
 
 .accordion-content {
-    max-height: 0;
-    overflow: hidden;
-    transition: max-height 0.3s ease;
+    display: none;
+    padding: 0;
+    border-top: 1px solid var(--neutral-200);
+    background-color: var(--white);
 }
 
-.accordion-content.active {
-    max-height: 300px;
+.accordion-body {
+    padding: 1.5rem;
+}
+
+.campaign-details {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin-bottom: 1.5rem;
+}
+
+.detail-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.875rem;
+}
+
+.detail-item i {
+    width: 16px;
+    height: 16px;
+    color: var(--primary-blue);
+}
+
+.campaign-actions-panel {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    padding-top: 1rem;
+    border-top: 1px solid var(--neutral-200);
 }
 
 /* Integration Dashboard Styles */

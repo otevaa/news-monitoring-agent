@@ -252,8 +252,13 @@
                             <div class="accordion-header" onclick="toggleAccordion('accordion-{{ loop.index }}')">
                                 <div class="campaign-header-info">
                                     <h4>{{ campaign.name }}</h4>
-                                    <span class="campaign-frequency">{{ campaign.frequency }}</span>
-                                    <span class="status-badge status-{{ campaign.status }}">{{ campaign.status }}</span>
+                                    <div class="campaign-frequency-with-clock">
+                                        <i data-feather="clock" style="width: 14px; height: 14px; margin-right: 0.25rem;"></i>
+                                        <span class="campaign-frequency">{{ campaign.frequency }}</span>
+                                    </div>
+                                    <span class="status-badge status-{{ campaign.status }}" style="margin-left: 0.5rem;">
+                                        {% if campaign.status == 'active' %}ACTIVE{% else %}{{ campaign.status.upper() }}{% endif %}
+                                    </span>
                                 </div>
                                 <button class="accordion-toggle">
                                     <i data-feather="chevron-down"></i>
@@ -293,6 +298,12 @@
                                                     Ouvrir la feuille Google Sheets
                                                 </a>
                                             </span>
+                                        </div>
+                                        {% endif %}
+                                        {% if campaign.original_keywords %}
+                                        <div class="detail-item">
+                                            <i data-feather="zap"></i>
+                                            <span><strong>Mots-clés originaux:</strong> {{ campaign.original_keywords }}</span>
                                         </div>
                                         {% endif %}
                                         {% if campaign.last_execution %}
@@ -602,19 +613,104 @@
                 const content = document.getElementById(accordionId);
                 const header = content.previousElementSibling;
                 const toggle = header.querySelector('.accordion-toggle');
+                const icon = toggle.querySelector('i');
                 
+                // Toggle the accordion content
                 if (content.style.display === 'block') {
                     content.style.display = 'none';
-                    toggle.querySelector('i').setAttribute('data-feather', 'chevron-down');
+                    icon.setAttribute('data-feather', 'chevron-down');
                     header.classList.remove('active');
                 } else {
+                    // Close all other accordions first
+                    document.querySelectorAll('.accordion-content').forEach(acc => {
+                        if (acc !== content) {
+                            acc.style.display = 'none';
+                            const otherHeader = acc.previousElementSibling;
+                            const otherToggle = otherHeader.querySelector('.accordion-toggle');
+                            const otherIcon = otherToggle.querySelector('i');
+                            otherIcon.setAttribute('data-feather', 'chevron-down');
+                            otherHeader.classList.remove('active');
+                        }
+                    });
+                    
+                    // Open the clicked accordion
                     content.style.display = 'block';
-                    toggle.querySelector('i').setAttribute('data-feather', 'chevron-up');
+                    icon.setAttribute('data-feather', 'chevron-up');
                     header.classList.add('active');
                 }
                 
                 // Refresh feather icons
                 feather.replace();
+            };
+            
+            // Campaign Management Functions
+            window.pauseCampaign = function(campaignId) {
+                if (confirm('Êtes-vous sûr de vouloir mettre cette campagne en pause ?')) {
+                    fetch(`/campaigns/${campaignId}/pause`, { method: 'POST' })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.success) {
+                                location.reload();
+                            } else {
+                                alert('Erreur lors de la pause de la campagne');
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error:', error);
+                            alert('Erreur lors de la pause de la campagne');
+                        });
+                }
+            };
+            
+            window.resumeCampaign = function(campaignId) {
+                if (confirm('Êtes-vous sûr de vouloir reprendre cette campagne ?')) {
+                    fetch(`/campaigns/${campaignId}/resume`, { method: 'POST' })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.success) {
+                                location.reload();
+                            } else {
+                                alert('Erreur lors de la reprise de la campagne');
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error:', error);
+                            alert('Erreur lors de la reprise de la campagne');
+                        });
+                }
+            };
+            
+            window.deleteCampaign = function(campaignId) {
+                if (confirm('Êtes-vous sûr de vouloir supprimer définitivement cette campagne ? Cette action est irréversible.')) {
+                    // Check if campaign has associated Google Sheet
+                    const campaignCard = document.querySelector(`[data-campaign-id="${campaignId}"]`);
+                    const hasGoogleSheet = campaignCard && campaignCard.querySelector('a[href*="docs.google.com"]');
+                    
+                    let deleteSheet = false;
+                    if (hasGoogleSheet) {
+                        deleteSheet = confirm('Cette campagne a une feuille Google associée. Voulez-vous également supprimer la référence à cette feuille ?');
+                    }
+                    
+                    fetch(`/campaigns/${campaignId}`, { 
+                        method: 'DELETE',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ delete_sheet: deleteSheet })
+                    })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.success) {
+                                location.reload();
+                            } else {
+                                alert('Erreur lors de la suppression de la campagne');
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error:', error);
+                            alert('Erreur lors de la suppression de la campagne');
+                        });
+                }
             };
         }
     </script>

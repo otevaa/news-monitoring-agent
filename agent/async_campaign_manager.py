@@ -184,64 +184,19 @@ class AsyncCampaignManager:
         time.sleep(0.5)  # Simulate database check
     
     def _expand_campaign_keywords(self, task: CampaignCreationTask) -> List[str]:
-        """Expand keywords for better coverage"""
-        try:
-            from .fetch_multi_source import fetch_articles_multi_source
-            # Use AI enhancer for keyword expansion
-            from .ai_enhancer import ai_enhancer
-            expanded = []
-            for keyword in task.keywords:
-                # Get some sample articles for context
-                sample_articles = fetch_articles_multi_source(keyword, max_items=3, use_ai_filtering=False)
-                expanded_keywords = ai_enhancer.expand_keywords(keyword, sample_articles)
-                expanded.extend(expanded_keywords)
-            return list(set(expanded))
-        except ImportError:
-            # Fallback to fetch_multi_source expand_keywords function
-            try:
-                from .fetch_multi_source import expand_keywords
-                expanded = []
-                for keyword in task.keywords:
-                    expanded_query = expand_keywords(keyword)
-                    # Split on OR and clean up
-                    expanded_terms = [term.strip() for term in expanded_query.split(' OR ')]
-                    expanded.extend(expanded_terms)
-                return list(set(expanded))
-            except ImportError:
-                # Ultimate fallback - basic expansion
-                expanded = []
-                for keyword in task.keywords:
-                    expanded.append(keyword)
-                    # Add basic synonyms
-                    if 'ai' in keyword.lower():
-                        expanded.extend(['intelligence artificielle', 'IA', 'machine learning'])
-                    elif 'tech' in keyword.lower():
-                        expanded.extend(['technologie', 'numérique', 'innovation'])
-                return list(set(expanded))
+        """Return original keywords - expansion is now handled during article fetching"""
+        return task.keywords
     
     def _test_rss_feeds(self, task: CampaignCreationTask, keywords: List[str]):
         """Test RSS feeds to ensure they work"""
-        try:
-            from .fetch_multi_source import fetch_articles_multi_source
-            fetch_function = fetch_articles_multi_source
-        except ImportError:
-            try:
-                from .fetch_multi_source import fetch_articles_rss
-                fetch_function = fetch_articles_rss
-            except ImportError:
-                logger.warning("No fetch function available, skipping RSS test")
-                return
+        from .fetch_multi_source import fetch_articles_multi_source
         
         # Test with a subset of keywords
         test_keywords = keywords[:3]  # Test first 3 keywords
         
         for keyword in test_keywords:
             try:
-                if 'multi_source' in str(fetch_function):
-                    articles = fetch_function(keyword, max_items=5)
-                else:
-                    articles = fetch_function(keyword, max_items=5)
-                    
+                articles = fetch_articles_multi_source(keyword, max_items=5)
                 if not articles:
                     logger.warning(f"No articles found for keyword: {keyword}")
                 else:
@@ -269,7 +224,6 @@ class AsyncCampaignManager:
                 'integrations': ['google_sheets'] if task.spreadsheet_id else [],
                 'description': f'Campaign created via async process for {task.campaign_name}',
                 'ai_filtering_enabled': True,
-                'relevance_threshold': 70,
                 'keyword_expansion_enabled': True,
                 'priority_alerts_enabled': True,
                 'ai_model': 'openai-gpt3.5'
@@ -305,63 +259,40 @@ class AsyncCampaignManager:
     def _process_campaign_articles(self, task: CampaignCreationTask, keywords: List[str]):
         """Process articles with AI and save to spreadsheet"""
         try:
-            # Use multi-source fetch if available
-            try:
-                from .fetch_multi_source import fetch_articles_multi_source
-                articles = fetch_articles_multi_source(
-                    ' OR '.join(keywords), 
-                    max_items=task.max_items,
-                    use_ai_filtering=True,
-                    relevance_threshold=70
-                )
-            except ImportError:
-                from .fetch_multi_source import fetch_articles_rss
-                articles = fetch_articles_rss(' OR '.join(keywords), max_items=task.max_items)
+            # Use multi-source fetch
+            from .fetch_multi_source import fetch_articles_multi_source
+            articles = fetch_articles_multi_source(
+                ' OR '.join(keywords), 
+                max_items=task.max_items
+            )
             
             if not articles:
                 logger.warning(f"No articles found for campaign {task.campaign_id}")
                 return
-            
-            # Process with AI if available
-            try:
-                from .ai_enhancer import ai_enhancer
-                # Use the correct method name for AI enhancement
-                filtered_articles, stats = ai_enhancer.filter_articles_by_relevance(articles, ' '.join(keywords), threshold=70)
-                if filtered_articles:
-                    articles = filtered_articles
-                    logger.info(f"AI filtered {len(articles)} articles with relevance >= 70%")
-            except (ImportError, AttributeError):
-                logger.info("AI enhancer not available or method not found, using articles as-is")
-            
+
             # Save to spreadsheet if Google Sheets is configured
-            try:
-                from .google_sheets_manager import GoogleSheetsManager
-                sheets_manager = GoogleSheetsManager()
-                
-                # Check if this campaign has a spreadsheet
-                if hasattr(task, 'spreadsheet_id') and task.spreadsheet_id:
-                    logger.info(f"Saving {len(articles)} articles to spreadsheet {task.spreadsheet_id}")
-                    success = sheets_manager.save_articles_to_spreadsheet(
-                        task.spreadsheet_id, 
-                        articles, 
-                        campaign_name=task.campaign_name,
-                        keywords=' '.join(keywords)
-                    )
-                    if success:
-                        logger.info(f"Successfully saved articles to spreadsheet for campaign {task.campaign_id}")
-                        # Update campaign with spreadsheet info
-                        if task.campaign_id in self.campaigns:
-                            self.campaigns[task.campaign_id]['spreadsheet_updated'] = True
-                            self.campaigns[task.campaign_id]['articles_in_spreadsheet'] = len(articles)
-                    else:
-                        logger.error(f"Failed to save articles to spreadsheet for campaign {task.campaign_id}")
+            from .google_sheets_manager import GoogleSheetsManager
+            sheets_manager = GoogleSheetsManager()
+            
+            # Check if this campaign has a spreadsheet
+            if hasattr(task, 'spreadsheet_id') and task.spreadsheet_id:
+                logger.info(f"Saving {len(articles)} articles to spreadsheet {task.spreadsheet_id}")
+                success = sheets_manager.save_articles_to_spreadsheet(
+                    task.spreadsheet_id, 
+                    articles, 
+                    campaign_name=task.campaign_name,
+                    keywords=' '.join(keywords)
+                )
+                if success:
+                    logger.info(f"Successfully saved articles to spreadsheet for campaign {task.campaign_id}")
+                    # Update campaign with spreadsheet info
+                    if task.campaign_id in self.campaigns:
+                        self.campaigns[task.campaign_id]['spreadsheet_updated'] = True
+                        self.campaigns[task.campaign_id]['articles_in_spreadsheet'] = len(articles)
                 else:
-                    logger.info(f"No spreadsheet configured for campaign {task.campaign_id}")
-                    
-            except ImportError:
-                logger.warning("Google Sheets manager not available")
-            except Exception as e:
-                logger.error(f"Error saving to spreadsheet: {e}")
+                    logger.error(f"Failed to save articles to spreadsheet for campaign {task.campaign_id}")
+            else:
+                logger.info(f"No spreadsheet configured for campaign {task.campaign_id}")
             
             # Update campaign status
             if task.campaign_id in self.campaigns:
