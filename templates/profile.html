@@ -19,16 +19,25 @@
                 </a>
                 
                 <nav class="nav">
-                    <a href="/" class="nav-link">Dashboard</a>
-                    <a href="/campaigns" class="nav-link">Campagnes</a>
-                    <a href="/integrations" class="nav-link">Intégrations</a>
-                    <a href="/analytics" class="nav-link">Analytics</a>
+                    <div class="nav-links">
+                        <a href="/" class="nav-link">Dashboard</a>
+                        <a href="/campaigns" class="nav-link">Campagnes</a>
+                        <a href="/integrations" class="nav-link">Intégrations</a>
+                        <a href="/files" class="nav-link">Fichiers</a>
+                    </div>
+                    <button class="mobile-menu-btn" onclick="toggleMobileMenu()">
+                        <i data-feather="menu"></i>
+                    </button>
                 </nav>
                 
                 <div class="user-menu">
                     <a href="/profile" class="btn btn-secondary btn-sm active">
                         <i data-feather="user"></i>
                         Profil
+                    </a>
+                    <a href="/logout" class="btn btn-outline btn-sm" onclick="return confirm('Êtes-vous sûr de vouloir vous déconnecter ?')">
+                        <i data-feather="log-out"></i>
+                        Déconnexion
                     </a>
                 </div>
             </div>
@@ -54,11 +63,12 @@
                 
                 <div style="display: flex; align-items: center; gap: 2rem; margin-bottom: 2rem;">
                     <div style="width: 80px; height: 80px; background: var(--primary-blue); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-size: 2rem; font-weight: 700;">
-                        {{ user.name[0].upper() if user.name else 'U' }}
+                        {% set display_name = user.name if user.name and user.name != 'Utilisateur Demo' else (user.email.split('@')[0].replace('.', ' ').title() if user.email != 'user@example.com' else 'Utilisateur Demo') %}
+                        {{ display_name[0].upper() if display_name else 'U' }}
                     </div>
                     <div>
                         <h3 style="font-size: 1.5rem; font-weight: 600; margin-bottom: 0.5rem;">
-                            {{ user.name or 'Utilisateur' }}
+                            {{ user.name if user.name and user.name != 'Utilisateur Demo' else (user.email.split('@')[0].replace('.', ' ').title() if user.email != 'user@example.com' else 'Utilisateur Demo') }}
                         </h3>
                         <p style="color: var(--neutral-600); margin-bottom: 0.5rem;">
                             {{ user.email }}
@@ -66,7 +76,12 @@
                         <div style="display: flex; gap: 1rem; align-items: center;">
                             <span class="status-badge status-active">Compte actif</span>
                             <span style="font-size: 0.875rem; color: var(--neutral-500);">
-                                <i data-feather="calendar"></i> Membre depuis le {{ user.created_at[:10] if user.created_at else 'N/A' }}
+                                <i data-feather="calendar"></i> 
+                                {% if user.created_at and user.created_at != '2024-01-01' %}
+                                    Membre depuis le {{ user.created_at }}
+                                {% else %}
+                                    Membre depuis le 1er janvier 2024
+                                {% endif %}
                             </span>
                         </div>
                     </div>
@@ -178,189 +193,156 @@
                 </form>
             </div>
 
-            <!-- AI Settings -->
-            <div class="card" style="margin-bottom: 2rem;">
-                <div class="card-header">
-                    <h3 class="card-title">Paramètres IA</h3>
-                    <p class="card-subtitle">Configurez les fonctionnalités d'intelligence artificielle</p>
-                </div>
+            <!-- Cards Layout - One per row -->
+            <div style="display: flex; flex-direction: column; gap: 1.5rem; margin-top: 2rem;">
                 
-                <form method="POST" action="/profile/ai-settings">
-                    <div style="display: flex; flex-direction: column; gap: 1.5rem;">
-                        <div>
-                            <label style="font-weight: 600; margin-bottom: 0.5rem; display: block;">
-                                Modèle IA par défaut
-                            </label>
-                            <select name="ai_model" style="width: 100%; padding: 0.5rem; border: 1px solid var(--neutral-300); border-radius: var(--radius-md); font-size: 0.875rem;">
-                                <option value="openrouter-auto" {% if profile.ai_model == 'openrouter-auto' %}selected{% endif %}>
-                                    OpenRouter - Auto (Recommandé)
-                                </option>
-                                <option value="ollama-deepseek-r1:1.5b" {% if profile.ai_model == 'ollama-deepseek-r1:1.5b' %}selected{% endif %}>
-                                    Ollama - DeepSeek R1 1.5B
-                                </option>
-                                <option value="openai-gpt-4o-mini" {% if profile.ai_model == 'openai-gpt-4o-mini' %}selected{% endif %}>
-                                    OpenAI - GPT-4o Mini
-                                </option>
-                                <option value="openai-gpt-4" {% if profile.ai_model == 'openai-gpt-4' %}selected{% endif %}>
-                                    OpenAI - GPT-4
-                                </option>
-                                <option value="anthropic-claude-3-haiku" {% if profile.ai_model == 'anthropic-claude-3-haiku' %}selected{% endif %}>
-                                    Anthropic - Claude 3 Haiku
-                                </option>
-                                <option value="gemini-pro" {% if profile.ai_model == 'gemini-pro' %}selected{% endif %}>
-                                    Google - Gemini Pro
-                                </option>
-                            </select>
-                            <p style="font-size: 0.75rem; color: var(--neutral-600); margin-top: 0.25rem;">
-                                Choisissez le modèle IA utilisé pour l'expansion des mots-clés et l'analyse des articles
-                            </p>
+                <!-- AI Settings Card -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Paramètres IA</h3>
+                        <p class="card-subtitle">Configurez le modèle d'intelligence artificielle</p>
+                    </div>
+                    
+                    <form method="POST" action="/profile/ai-settings">
+                        <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+                            <div>
+                                <label style="font-weight: 600; margin-bottom: 0.5rem; display: block;">
+                                    Modèle IA par défaut
+                                </label>
+                                <select name="ai_model" style="width: 100%; padding: 0.5rem; border: 1px solid var(--neutral-300); border-radius: var(--radius-md); font-size: 0.875rem;">
+                                    <option value="openrouter-auto" {% if profile.ai_model == 'openrouter-auto' %}selected{% endif %}>
+                                        OpenRouter - Auto (Recommandé)
+                                    </option>
+                                    <option value="ollama-deepseek-r1:1.5b" {% if profile.ai_model == 'ollama-deepseek-r1:1.5b' %}selected{% endif %}>
+                                        Ollama - DeepSeek R1 1.5B
+                                    </option>
+                                    <option value="openai-gpt-4o-mini" {% if profile.ai_model == 'openai-gpt-4o-mini' %}selected{% endif %}>
+                                        OpenAI - GPT-4o Mini
+                                    </option>
+                                    <option value="openai-gpt-4" {% if profile.ai_model == 'openai-gpt-4' %}selected{% endif %}>
+                                        OpenAI - GPT-4
+                                    </option>
+                                    <option value="anthropic-claude-3-haiku" {% if profile.ai_model == 'anthropic-claude-3-haiku' %}selected{% endif %}>
+                                        Anthropic - Claude 3 Haiku
+                                    </option>
+                                    <option value="gemini-pro" {% if profile.ai_model == 'gemini-pro' %}selected{% endif %}>
+                                        Google - Gemini Pro
+                                    </option>
+                                </select>
+                                <p style="font-size: 0.75rem; color: var(--neutral-600); margin-top: 0.25rem;">
+                                    Choisissez le modèle IA utilisé pour l'expansion des mots-clés et l'analyse des articles
+                                </p>
+                            </div>
+                            
+                            <div style="display: flex; justify-content: flex-end;">
+                                <button type="submit" class="btn btn-primary">
+                                    <i data-feather="save"></i>
+                                    Enregistrer
+                                </button>
+                            </div>
                         </div>
-                        
+                    </form>
+                </div>
+
+                <!-- API Access Card -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Accès API</h3>
+                        <p class="card-subtitle">Intégrez NewsMonitor Pro dans vos applications</p>
+                    </div>
+                    
+                    <div style="display: flex; flex-direction: column; gap: 1rem;">
                         <div>
-                            <label style="font-weight: 600; margin-bottom: 0.5rem; display: block;">
-                                Fonctionnalités IA
-                            </label>
-                            <div style="display: flex; flex-direction: column; gap: 0.5rem;">
-                                <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal;">
-                                    <input 
-                                        type="checkbox" 
-                                        name="keyword_expansion_enabled" 
-                                        {% if profile.keyword_expansion_enabled %}checked{% endif %}
-                                    />
-                                    Expansion automatique des mots-clés
-                                </label>
-                                <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal;">
-                                    <input 
-                                        type="checkbox" 
-                                        name="ai_filtering_enabled" 
-                                        {% if profile.ai_filtering_enabled %}checked{% endif %}
-                                    />
-                                    Filtrage IA des articles
-                                </label>
-                                <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal;">
-                                    <input 
-                                        type="checkbox" 
-                                        name="priority_alerts_enabled" 
-                                        {% if profile.priority_alerts_enabled %}checked{% endif %}
-                                    />
-                                    Alertes prioritaires
-                                </label>
+                            <label class="form-label">Votre clé API</label>
+                            <div style="display: flex; gap: 0.5rem;">
+                                <input 
+                                    type="password" 
+                                    id="api-key" 
+                                    class="form-input" 
+                                    value="{{ user.api_key if user.api_key else 'Aucune clé générée' }}"
+                                    readonly
+                                    style="flex: 1;"
+                                />
+                                <button class="btn btn-secondary btn-sm" onclick="toggleApiKey()">
+                                    <i data-feather="eye" id="toggle-icon"></i>
+                                </button>
+                                <button class="btn btn-secondary btn-sm" onclick="copyApiKey()">
+                                    <i data-feather="copy"></i>
+                                </button>
                             </div>
                         </div>
                         
-                        <div style="display: flex; justify-content: flex-end;">
-                            <button type="submit" class="btn btn-primary">
-                                <i data-feather="save"></i>
-                                Enregistrer les paramètres IA
-                            </button>
+                        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                            {% if user.api_key %}
+                                <button class="btn btn-warning btn-sm" onclick="revokeApiKey()">
+                                    <i data-feather="x-circle"></i>
+                                    Révoquer
+                                </button>
+                            {% else %}
+                                <button class="btn btn-primary btn-sm" onclick="generateApiKey()">
+                                    <i data-feather="key"></i>
+                                    Générer
+                                </button>
+                            {% endif %}
+                            
+                            <a href="/api/docs" class="btn btn-secondary btn-sm" target="_blank">
+                                <i data-feather="book"></i>
+                                Documentation
+                            </a>
+                        </div>
+                        
+                        <div style="background: var(--neutral-50); padding: 1rem; border-radius: var(--radius-md);">
+                            <h4 style="font-weight: 600; margin-bottom: 0.5rem;">Endpoints disponibles:</h4>
+                            <ul style="margin-left: 1.5rem; font-size: 0.875rem; color: var(--neutral-600);">
+                                <li><code>GET /api/campaigns</code> - Liste de vos campagnes</li>
+                                <li><code>POST /api/campaigns</code> - Créer une campagne</li>
+                                <li><code>GET /api/articles</code> - Récupérer les articles</li>
+                                <li><code>POST /api/search</code> - Recherche ponctuelle</li>
+                            </ul>
                         </div>
                     </div>
-                </form>
-            </div>
                 </div>
-            </div>
 
-            <!-- API Access -->
-            <div class="card" style="margin-bottom: 2rem;">
-                <div class="card-header">
-                    <h3 class="card-title">Accès API</h3>
-                    <p class="card-subtitle">Intégrez NewsMonitor Pro dans vos propres applications</p>
-                </div>
-                
-                <div style="margin-bottom: 1rem;">
-                    <label class="form-label">Votre clé API</label>
-                    <div style="display: flex; gap: 0.5rem;">
-                        <input 
-                            type="password" 
-                            id="api-key" 
-                            class="form-input" 
-                            value="{{ user.api_key if user.api_key else 'Aucune clé générée' }}"
-                            readonly
-                            style="flex: 1;"
-                        />
-                        <button class="btn btn-secondary btn-sm" onclick="toggleApiKey()">
-                            <i data-feather="eye" id="toggle-icon"></i>
-                        </button>
-                        <button class="btn btn-secondary btn-sm" onclick="copyApiKey()">
-                            <i data-feather="copy"></i>
-                        </button>
+                <!-- Account Actions Card -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Actions du compte</h3>
+                        <p class="card-subtitle">Gestion de vos données et paramètres</p>
                     </div>
-                </div>
-                
-                <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem;">
-                    {% if user.api_key %}
-                        <button class="btn btn-warning btn-sm" onclick="regenerateApiKey()">
-                            <i data-feather="refresh-cw"></i>
-                            Régénérer
-                        </button>
-                    {% else %}
-                        <button class="btn btn-primary btn-sm" onclick="generateApiKey()">
-                            <i data-feather="key"></i>
-                            Générer une clé API
-                        </button>
-                    {% endif %}
                     
-                    <a href="/api/docs" class="btn btn-secondary btn-sm" target="_blank">
-                        <i data-feather="book"></i>
-                        Documentation API
-                    </a>
-                </div>
-                
-                <div style="background: var(--neutral-50); padding: 1rem; border-radius: var(--radius-md);">
-                    <h4 style="font-weight: 600; margin-bottom: 0.5rem;">Endpoints disponibles:</h4>
-                    <ul style="margin-left: 1.5rem; font-size: 0.875rem; color: var(--neutral-600);">
-                        <li><code>GET /api/campaigns</code> - Liste de vos campagnes</li>
-                        <li><code>POST /api/campaigns</code> - Créer une campagne</li>
-                        <li><code>GET /api/articles</code> - Récupérer les articles</li>
-                        <li><code>POST /api/search</code> - Recherche ponctuelle</li>
-                    </ul>
-                </div>
-            </div>
-
-            <!-- Account Actions -->
-            <div class="card">
-                <div class="card-header">
-                    <h3 class="card-title">Actions du compte</h3>
-                </div>
-                
-                <div style="display: flex; flex-direction: column; gap: 1rem;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 1rem; border: 1px solid var(--neutral-200); border-radius: var(--radius-md);">
-                        <div>
+                    <div style="display: flex; flex-wrap: wrap; gap: 1rem;">
+                        <div style="flex: 1; min-width: 250px; padding: 1rem; border: 1px solid var(--neutral-200); border-radius: var(--radius-md);">
                             <h4 style="font-weight: 600; margin-bottom: 0.25rem;">Exporter mes données</h4>
-                            <p style="font-size: 0.875rem; color: var(--neutral-600);">
+                            <p style="font-size: 0.875rem; color: var(--neutral-600); margin-bottom: 0.5rem;">
                                 Téléchargez toutes vos campagnes et articles au format JSON
                             </p>
+                            <button class="btn btn-secondary btn-sm" onclick="exportData()" style="width: 100%;">
+                                <i data-feather="download"></i>
+                                Exporter
+                            </button>
                         </div>
-                        <button class="btn btn-secondary" onclick="exportData()">
-                            <i data-feather="download"></i>
-                            Exporter
-                        </button>
-                    </div>
-                    
-                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 1rem; border: 1px solid var(--neutral-200); border-radius: var(--radius-md);">
-                        <div>
-                            <h4 style="font-weight: 600; margin-bottom: 0.25rem;">Déconnecter toutes les intégrations</h4>
-                            <p style="font-size: 0.875rem; color: var(--neutral-600);">
+                        
+                        <div style="flex: 1; min-width: 250px; padding: 1rem; border: 1px solid var(--neutral-200); border-radius: var(--radius-md);">
+                            <h4 style="font-weight: 600; margin-bottom: 0.25rem;">Déconnecter les intégrations</h4>
+                            <p style="font-size: 0.875rem; color: var(--neutral-600); margin-bottom: 0.5rem;">
                                 Révoque l'accès à Google Sheets et Airtable
                             </p>
+                            <button class="btn btn-warning btn-sm" onclick="disconnectAll()" style="width: 100%;">
+                                <i data-feather="unlink"></i>
+                                Déconnecter
+                            </button>
                         </div>
-                        <button class="btn btn-warning" onclick="disconnectAll()">
-                            <i data-feather="unlink"></i>
-                            Déconnecter tout
-                        </button>
-                    </div>
-                    
-                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 1rem; border: 1px solid var(--error); border-radius: var(--radius-md);">
-                        <div>
+                        
+                        <div style="flex: 1; min-width: 250px; padding: 1rem; border: 1px solid var(--error); border-radius: var(--radius-md);">
                             <h4 style="font-weight: 600; margin-bottom: 0.25rem; color: var(--error);">Supprimer mon compte</h4>
-                            <p style="font-size: 0.875rem; color: var(--neutral-600);">
+                            <p style="font-size: 0.875rem; color: var(--neutral-600); margin-bottom: 0.5rem;">
                                 Supprime définitivement votre compte et toutes vos données
                             </p>
+                            <button class="btn btn-danger btn-sm" onclick="deleteAccount()" style="width: 100%;">
+                                <i data-feather="trash-2"></i>
+                                Supprimer
+                            </button>
                         </div>
-                        <button class="btn btn-danger" onclick="deleteAccount()">
-                            <i data-feather="trash-2"></i>
-                            Supprimer
-                        </button>
                     </div>
                 </div>
             </div>
@@ -369,6 +351,14 @@
 
     <script>
         feather.replace();
+
+        // Mobile menu toggle function
+        function toggleMobileMenu() {
+            const navLinks = document.querySelector('.nav-links');
+            if (navLinks) {
+                navLinks.style.display = navLinks.style.display === 'flex' ? 'none' : 'flex';
+            }
+        }
 
         function toggleApiKey() {
             const input = document.getElementById('api-key');

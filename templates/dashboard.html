@@ -37,7 +37,6 @@
                         <a href="/campaigns" class="nav-link">Campagnes</a>
                         <a href="/integrations" class="nav-link">Intégrations</a>
                         <a href="/files" class="nav-link">Fichiers</a>
-                        <a href="/analytics" class="nav-link">Analytics</a>
                     </div>
                     <button class="mobile-menu-btn" onclick="toggleMobileMenu()">
                         <i data-feather="menu"></i>
@@ -45,20 +44,14 @@
                 </nav>
                 
                 <div class="user-menu">
-                    {% if session.credentials %}
-                        <div class="user-info">
-                            <span class="status-badge status-active">Connecté</span>
-                        </div>
-                        <a href="/profile" class="btn btn-secondary btn-sm">
-                            <i data-feather="user"></i>
-                            Profil
-                        </a>
-                    {% else %}
-                        <a href="/auth" class="auth-button">
-                            <i data-feather="log-in"></i>
-                            Se connecter
-                        </a>
-                    {% endif %}
+                    <a href="/profile" class="btn btn-secondary btn-sm">
+                        <i data-feather="user"></i>
+                        Profil
+                    </a>
+                    <a href="/logout" class="btn btn-outline btn-sm" onclick="return confirm('Êtes-vous sûr de vouloir vous déconnecter ?')">
+                        <i data-feather="log-out"></i>
+                        Déconnexion
+                    </a>
                 </div>
             </div>
         </div>
@@ -74,13 +67,6 @@
                 <p style="font-size: 1.125rem; color: var(--neutral-600); max-width: 600px; margin: 0 auto 2rem;">
                     Créez des campagnes de veille personnalisées et recevez automatiquement les articles pertinents dans vos outils préférés.
                 </p>
-                
-                {% if not session.credentials %}
-                    <a href="/campaigns/create" class="btn btn-primary btn-lg">
-                        <i data-feather="zap"></i>
-                        Commencer maintenant
-                    </a>
-                {% endif %}
             </div>
 
             <!-- Alerts -->
@@ -107,7 +93,6 @@
             {% endif %}
 
             <!-- Quick Search and Campaign Creation -->
-            {% if session.credentials %}
             <div class="search-campaign-section" style="display: grid; grid-template-columns: 2fr 1fr; gap: 1.5rem; margin-bottom: 2rem;">
                 <!-- Quick Search -->
                 <div class="card">
@@ -166,33 +151,8 @@
                     </div>
                 </div>
             </div>
-            {% else %}
-            <!-- Search Section for non-logged users -->
-            <div class="search-section">
-                <div class="search-header">
-                    <h2 class="search-title">Recherche ponctuelle</h2>
-                    <p class="search-subtitle">Lancez une recherche ponctuelle</p>
-                </div>
-                
-                <form method="get" action="/veille" class="search-container">
-                    <i data-feather="search" class="search-icon"></i>
-                    <input 
-                        type="text" 
-                        name="q" 
-                        class="search-input" 
-                        placeholder="Saisissez votre mot-clé (ex: intelligence artificielle, cybersécurité...)"
-                        value="{{ request.args.get('q', '') }}"
-                    />
-                    <button type="submit" class="btn btn-primary" style="position: absolute; right: 0.5rem; top: 50%; transform: translateY(-50%);">
-                        <i data-feather="search"></i>
-                        Rechercher
-                    </button>
-                </form>
-            </div>
-            {% endif %}
-
+            
             <!-- Dashboard Stats -->
-            {% if session.credentials %}
             <div class="stats-section">
                 <div class="stats-grid">
                     <div class="stat-card">
@@ -429,7 +389,6 @@
                     </div>
                 </div>
             </div>
-            {% endif %}
 
             <!-- Search Results -->
             {% if articles %}
@@ -476,7 +435,6 @@
                         <i data-feather="bookmark"></i>
                         Créer une campagne avec ces mots-clés
                     </a>
-                    {% if session.credentials %}
                     <button onclick="saveSearchResults()" class="btn btn-secondary">
                         <i data-feather="download"></i>
                         Sauvegarder dans Google Sheets
@@ -484,7 +442,6 @@
                     <script>
                         window.searchArticles = {{ articles | tojson | safe }};
                     </script>
-                    {% endif %}
                 </div>
                 {% endif %}
             </div>
@@ -599,6 +556,13 @@
                                 alert('Erreur lors de la suppression');
                             }
                         });
+                }
+            };
+            
+            window.toggleMobileMenu = function() {
+                const navLinks = document.querySelector('.nav-links');
+                if (navLinks) {
+                    navLinks.classList.toggle('active');
                 }
             };
             

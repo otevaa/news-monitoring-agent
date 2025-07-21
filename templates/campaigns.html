@@ -26,17 +26,25 @@
                 </a>
                 
                 <nav class="nav">
-                    <a href="/" class="nav-link">Dashboard</a>
-                    <a href="/campaigns" class="nav-link active">Campagnes</a>
-                    <a href="/integrations" class="nav-link">Intégrations</a>
-                    <a href="/files" class="nav-link">Fichiers</a>
-                    <a href="/analytics" class="nav-link">Analytics</a>
+                    <div class="nav-links">
+                        <a href="/" class="nav-link">Dashboard</a>
+                        <a href="/campaigns" class="nav-link active">Campagnes</a>
+                        <a href="/integrations" class="nav-link">Intégrations</a>
+                        <a href="/files" class="nav-link">Fichiers</a>
+                    </div>
+                    <button class="mobile-menu-btn" onclick="toggleMobileMenu()">
+                        <i data-feather="menu"></i>
+                    </button>
                 </nav>
                 
                 <div class="user-menu">
                     <a href="/profile" class="btn btn-secondary btn-sm">
                         <i data-feather="user"></i>
                         Profil
+                    </a>
+                    <a href="/logout" class="btn btn-outline btn-sm" onclick="return confirm('Êtes-vous sûr de vouloir vous déconnecter ?')">
+                        <i data-feather="log-out"></i>
+                        Déconnexion
                     </a>
                 </div>
             </div>

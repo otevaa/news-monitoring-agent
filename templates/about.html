@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>À propos - NewsMonitor Pro</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://unpkg.com/feather-icons"></script>
+</head>
+<body>
+    <!-- Navigation -->
+    <header class="homepage-header">
+        <div class="container">
+            <div class="header-content">
+                <a href="/" class="logo">
+                    <i data-feather="trending-up" class="logo-icon"></i>
+                    NewsMonitor Pro
+                </a>
+                
+                <nav class="header-nav">
+                    <a href="/" class="nav-link">Accueil</a>
+                    <a href="/about" class="nav-link active">À propos</a>
+                    <a href="/team" class="nav-link">Équipe</a>
+                    <a href="/pricing" class="nav-link">Tarifs</a>
+                </nav>
+                
+                <div class="header-menu">
+                    <a href="{{ url_for('signin') }}" class="btn-outline">Connexion</a>
+                    <a href="{{ url_for('signup') }}" class="btn-primary-cta">S'inscrire</a>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- About Section -->
+    <section class="page-section">
+        <div class="container">
+            <div class="page-header">
+                <h1 class="page-title">À propos de NewsMonitor Pro</h1>
+                <p class="page-subtitle">La nouvelle génération de veille média intelligente</p>
+            </div>
+
+            <div class="about-content">
+                <div class="about-story">
+                    <h2>Notre mission</h2>
+                    <p>Chez NewsMonitor Pro, nous croyons que l'information est le pouvoir. Dans un monde où l'actualité évolue à la vitesse de l'éclair, nous avons créé une solution qui permet aux professionnels de rester informés sans effort.</p>
+                    
+                    <p>Notre plateforme utilise l'intelligence artificielle pour analyser, filtrer et présenter l'information la plus pertinente selon vos besoins spécifiques. Fini les heures perdues à parcourir des centaines de sources - nous le faisons pour vous.</p>
+                </div>
+
+                <div class="about-features">
+                    <h2>Pourquoi nous choisir ?</h2>
+                    <div class="features-grid">
+                        <div class="about-feature-card">
+                            <div class="about-feature-icon">
+                                <i data-feather="zap"></i>
+                            </div>
+                            <h3>IA de pointe</h3>
+                            <p>Nos algorithmes d'intelligence artificielle analysent et comprennent le contenu pour vous présenter uniquement ce qui compte.</p>
+                        </div>
+                        
+                        <div class="about-feature-card">
+                            <div class="about-feature-icon">
+                                <i data-feather="clock"></i>
+                            </div>
+                            <h3>Temps réel</h3>
+                            <p>Recevez les informations importantes dès qu'elles sont publiées, 24h/24 et 7j/7.</p>
+                        </div>
+                        
+                        <div class="about-feature-card">
+                            <div class="about-feature-icon">
+                                <i data-feather="shield"></i>
+                            </div>
+                            <h3>Sécurité totale</h3>
+                            <p>Vos données sont protégées par un chiffrement de bout en bout et des protocoles de sécurité avancés.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="about-stats">
+                    <h2>NewsMonitor Pro en chiffres</h2>
+                    <div class="stats-grid">
+                        <div class="stat-item">
+                            <div class="stat-number">10,000+</div>
+                            <div class="stat-label">Sources surveillées</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-number">50+</div>
+                            <div class="stat-label">Langues supportées</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-number">99.9%</div>
+                            <div class="stat-label">Temps de disponibilité</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-number">1M+</div>
+                            <div class="stat-label">Articles analysés/jour</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA Section -->
+    <section class="cta-section">
+        <div class="cta-background"></div>
+        <div class="container">
+            <div class="cta-content">
+                <h2 class="cta-title">Prêt à révolutionner votre veille ?</h2>
+                <p class="cta-subtitle">Rejoignez des milliers de professionnels qui font confiance à NewsMonitor Pro</p>
+                <a href="{{ url_for('signup') }}" class="btn-cta-large">
+                    <i data-feather="arrow-right"></i>
+                    Commencer gratuitement
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="homepage-footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-brand">
+                    <div class="logo">
+                        <i data-feather="trending-up" class="logo-icon"></i>
+                        NewsMonitor Pro
+                    </div>
+                    <p class="footer-description">La plateforme de veille média intelligente</p>
+                </div>
+                <div class="footer-info">
+                    <p>&copy; 2025 NewsMonitor Pro. Tous droits réservés.</p>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        feather.replace();
+    </script>
+</body>
+</html>

@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Connexion - NewsMonitor Pro</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://unpkg.com/feather-icons"></script>
+</head>
+<body class="auth-body">
+    <div class="auth-container">
+        <div class="auth-card">
+            <!-- Logo and Welcome -->
+            <div class="auth-header">
+                <div class="auth-logo">
+                    <i data-feather="trending-up"></i>
+                    NewsMonitor Pro
+                </div>
+            </div>
+
+            <!-- Flash Messages -->
+            {% if get_flashed_messages() %}
+                <div class="auth-alerts">
+                    {% for category, message in get_flashed_messages(with_categories=true) %}
+                        <div class="alert alert-{{ 'success' if category == 'success' else 'error' if category == 'error' else 'info' if category == 'info' else category }}">
+                            <i data-feather="{{ 'check-circle' if category == 'success' else 'alert-triangle' if category == 'error' else 'info' }}"></i>
+                            {{ message }}
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+
+            <!-- Tab Navigation -->
+            <div class="auth-tabs">
+                <button class="auth-tab active" onclick="showTab('signin')" id="signin-tab-btn">
+                    Connexion
+                </button>
+                <button class="auth-tab" onclick="showTab('signup')" id="signup-tab-btn">
+                    Inscription
+                </button>
+            </div>
+
+            <!-- Sign In Form -->
+            <div id="signin-tab" class="auth-form">
+                <div class="auth-form-header">
+                    <h1>Bon retour</h1>
+                    <p>Connectez-vous à votre compte</p>
+                </div>
+                
+                <form method="POST" action="{{ url_for('signin') }}">
+                    <div class="form-group">
+                        <label for="signin-email" class="form-label">Adresse email</label>
+                        <input type="email" id="signin-email" name="email" class="form-input-auth" 
+                               placeholder="nom@exemple.com" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="signin-password" class="form-label">Mot de passe</label>
+                        <input type="password" id="signin-password" name="password" class="form-input-auth" 
+                               placeholder="••••••••" required>
+                    </div>
+                    
+                    <button type="submit" class="btn-auth-primary">
+                        Se connecter
+                    </button>
+                </form>
+            </div>
+
+            <!-- Sign Up Form -->
+            <div id="signup-tab" class="auth-form hidden">
+                <div class="auth-form-header">
+                    <h1>Créez votre compte</h1>
+                    <p>Commencez votre veille dès aujourd'hui</p>
+                </div>
+                
+                <form method="POST" action="{{ url_for('signup') }}">
+                    <div class="form-group">
+                        <label for="signup-name" class="form-label">Nom complet</label>
+                        <input type="text" id="signup-name" name="name" class="form-input-auth" 
+                               placeholder="Jean Dupont" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="signup-email" class="form-label">Adresse email</label>
+                        <input type="email" id="signup-email" name="email" class="form-input-auth" 
+                               placeholder="nom@exemple.com" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="signup-password" class="form-label">Mot de passe</label>
+                        <input type="password" id="signup-password" name="password" class="form-input-auth" 
+                               placeholder="••••••••" required>
+                    </div>
+                    
+                    <button type="submit" class="btn-auth-primary">
+                        Créer mon compte
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        feather.replace();
+
+        function showTab(tabName) {
+            // Hide all tabs
+            document.getElementById('signin-tab').classList.add('hidden');
+            document.getElementById('signup-tab').classList.add('hidden');
+            
+            // Remove active class from all tab buttons
+            document.getElementById('signin-tab-btn').classList.remove('active');
+            document.getElementById('signup-tab-btn').classList.remove('active');
+            
+            // Show selected tab and activate button
+            document.getElementById(tabName + '-tab').classList.remove('hidden');
+            document.getElementById(tabName + '-tab-btn').classList.add('active');
+        }
+    </script>
+</body>
+</html>

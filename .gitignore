@@ -104,3 +104,4 @@ tmp/
 readme_anglais.md
 deploy_docker.sh
 deploy_render.sh
+newsmonitor.db

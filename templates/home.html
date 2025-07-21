@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NewsMonitor Pro - Surveillance d'actualités avec IA</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://unpkg.com/feather-icons"></script>
+</head>
+<body>
+    <!-- Navigation -->
+    <header class="homepage-header">
+        <div class="container">
+            <div class="header-content">
+                <a href="/" class="logo">
+                    <i data-feather="trending-up" class="logo-icon"></i>
+                    NewsMonitor Pro
+                </a>
+                
+                <nav class="header-nav">
+                    <a href="/" class="nav-link active">Accueil</a>
+                    <a href="/about" class="nav-link">À propos</a>
+                    <a href="/team" class="nav-link">Équipe</a>
+                    <a href="/pricing" class="nav-link">Tarifs</a>
+                </nav>
+                
+                <div class="header-menu">
+                    <a href="{{ url_for('signin') }}" class="btn-outline">Connexion</a>
+                    <a href="{{ url_for('signup') }}" class="btn-primary-cta">S'inscrire</a>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Hero Section -->
+    <section class="hero-section">
+        <div class="hero-background"></div>
+        <div class="container">
+            <div class="hero-content">
+                <h1 class="hero-title">
+                    Surveillez l'actualité avec l'<span class="hero-highlight">intelligence artificielle</span>
+                </h1>
+                <p class="hero-subtitle">
+                    Créez des campagnes de veille personnalisées, analysez les tendances et restez informé en temps réel avec notre plateforme alimentée par l'IA.
+                </p>
+                
+                <div class="hero-buttons">
+                    <a href="{{ url_for('signup') }}" class="btn-hero-primary">
+                        <i data-feather="rocket"></i>
+                        Commencer maintenant
+                    </a>
+                    <a href="#features" class="btn-hero-secondary">
+                        <i data-feather="play-circle"></i>
+                        Voir la démo
+                    </a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Search Section -->
+    <section class="search-section">
+        <div class="container">
+            <div class="search-container">
+                <div class="search-header">
+                    <h2 class="search-title">
+                        <i data-feather="search"></i>
+                        Essayez maintenant
+                    </h2>
+                    <p class="search-subtitle">Découvrez la puissance de notre IA avec une recherche instantanée</p>
+                </div>
+                
+                <div class="search-box">
+                    <input type="text" id="quick-search" class="search-input-modern" 
+                           placeholder="intelligence artificielle, technologie, startup...">
+                    <button class="search-btn-modern" onclick="performQuickSearch()">
+                        <i data-feather="search"></i>
+                    </button>
+                </div>
+                
+                <div id="search-results" class="search-results-modern hidden"></div>
+                
+                <div id="voir-plus-section" class="text-center hidden" style="margin-top: 2rem;">
+                    <a href="{{ url_for('signin') }}" class="btn-secondary-modern">
+                        <i data-feather="arrow-right"></i>
+                        Voir plus de résultats
+                    </a>
+                </div>
+            </div>
+        </div>
+    </section>
+                
+    <!-- Features Section -->
+    <section class="features-section">
+        <div class="container">
+            <div class="features-header">
+                <h2 class="features-title">Fonctionnalités puissantes</h2>
+                <p class="features-subtitle">Tout ce dont vous avez besoin pour une veille efficace</p>
+            </div>
+            
+            <div class="features-grid">
+                <div class="feature-card feature-card-primary">
+                    <div class="feature-icon">
+                        <i data-feather="zap"></i>
+                    </div>
+                    <h3 class="feature-title">IA Avancée</h3>
+                    <p class="feature-description">Expansion automatique des mots-clés et analyse sémantique pour des résultats pertinents.</p>
+                </div>
+                
+                <div class="feature-card feature-card-secondary">
+                    <div class="feature-icon">
+                        <i data-feather="clock"></i>
+                    </div>
+                    <h3 class="feature-title">Surveillance Temps Réel</h3>
+                    <p class="feature-description">Campagnes automatisées qui s'adaptent à vos besoins de veille.</p>
+                </div>
+                
+                <div class="feature-card feature-card-accent">
+                    <div class="feature-icon">
+                        <i data-feather="link"></i>
+                    </div>
+                    <h3 class="feature-title">Intégrations</h3>
+                    <p class="feature-description">Connectez vos outils favoris comme Google Sheets et Airtable.</p>
+                </div>
+                
+                <div class="feature-card feature-card-success">
+                    <div class="feature-icon">
+                        <i data-feather="shield"></i>
+                    </div>
+                    <h3 class="feature-title">Sécurité</h3>
+                    <p class="feature-description">Chiffrement de bout en bout et authentification sécurisée.</p>
+                </div>
+                
+                <div class="feature-card feature-card-warning">
+                    <div class="feature-icon">
+                        <i data-feather="bar-chart-3"></i>
+                    </div>
+                    <h3 class="feature-title">Analytics</h3>
+                    <p class="feature-description">Tableaux de bord détaillés et rapports personnalisables.</p>
+                </div>
+                
+                <div class="feature-card feature-card-info">
+                    <div class="feature-icon">
+                        <i data-feather="globe"></i>
+                    </div>
+                    <h3 class="feature-title">Multi-sources</h3>
+                    <p class="feature-description">Surveillance de centaines de sources d'actualités mondiales.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA Section -->
+    <section class="cta-section">
+        <div class="cta-background"></div>
+        <div class="container">
+            <div class="cta-content">
+                <h2 class="cta-title">Prêt à transformer votre veille média ?</h2>
+                <p class="cta-subtitle">Rejoignez des milliers d'utilisateurs qui font confiance à NewsMonitor Pro</p>
+                <a href="{{ url_for('signup') }}" class="btn-cta-large">
+                    <i data-feather="user-plus"></i>
+                    Créer un compte gratuit
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="homepage-footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-brand">
+                    <div class="logo">
+                        <i data-feather="trending-up" class="logo-icon"></i>
+                        NewsMonitor Pro
+                    </div>
+                    <p class="footer-description">La plateforme de veille média intelligente</p>
+                </div>
+                <div class="footer-info">
+                    <p>&copy; 2025 NewsMonitor Pro. Tous droits réservés.</p>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        feather.replace();
+
+        async function performQuickSearch() {
+            const query = document.getElementById('quick-search').value.trim();
+            const resultsDiv = document.getElementById('search-results');
+            const voirPlusSection = document.getElementById('voir-plus-section');
+            
+            if (!query) {
+                resultsDiv.classList.add('hidden');
+                voirPlusSection.classList.add('hidden');
+                return;
+            }
+
+            try {
+                resultsDiv.innerHTML = '<div class="search-loading">Recherche en cours...</div>';
+                resultsDiv.classList.remove('hidden');
+                
+                const response = await fetch('/api/quick-search', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query: query, limit: 3 })
+                });
+
+                const data = await response.json();
+                
+                if (data.articles && data.articles.length > 0) {
+                    resultsDiv.innerHTML = data.articles.map(article => `
+                        <div class="search-result">
+                            <div class="search-result-content">
+                                <h4 class="search-result-title">${article.title}</h4>
+                                <div class="search-result-meta">
+                                    <span><i data-feather="calendar"></i>${article.date}</span>
+                                    <span><i data-feather="globe"></i>${article.source}</span>
+                                </div>
+                                <p class="search-result-summary">${article.summary || article.description || ''}</p>
+                            </div>
+                            <a href="${article.link}" target="_blank" class="btn btn-small btn-primary">
+                                <i data-feather="external-link"></i>
+                            </a>
+                        </div>
+                    `).join('');
+                    
+                    voirPlusSection.classList.remove('hidden');
+                    feather.replace();
+                } else {
+                    resultsDiv.innerHTML = '<div class="search-empty">Aucun résultat trouvé</div>';
+                    voirPlusSection.classList.add('hidden');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                resultsDiv.innerHTML = '<div class="search-error">Erreur lors de la recherche</div>';
+                voirPlusSection.classList.add('hidden');
+            }
+        }
+
+        // Enter key support
+        document.getElementById('quick-search').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                performQuickSearch();
+            }
+        });
+    </script>
+</body>
+</html>

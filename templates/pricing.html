@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nos tarifs - NewsMonitor Pro</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://unpkg.com/feather-icons"></script>
+</head>
+<body>
+    <!-- Navigation -->
+    <header class="homepage-header">
+        <div class="container">
+            <div class="header-content">
+                <a href="/" class="logo">
+                    <i data-feather="trending-up" class="logo-icon"></i>
+                    NewsMonitor Pro
+                </a>
+                
+                <nav class="header-nav">
+                    <a href="/" class="nav-link">Accueil</a>
+                    <a href="/about" class="nav-link">À propos</a>
+                    <a href="/team" class="nav-link">Équipe</a>
+                    <a href="/pricing" class="nav-link active">Tarifs</a>
+                </nav>
+                
+                <div class="header-menu">
+                    <a href="{{ url_for('signin') }}" class="btn-outline">Connexion</a>
+                    <a href="{{ url_for('signup') }}" class="btn-primary-cta">S'inscrire</a>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Pricing Section -->
+    <section class="page-section">
+        <div class="container">
+            <div class="page-header">
+                <h1 class="page-title">Nos tarifs</h1>
+                <p class="page-subtitle">Choisissez l'offre qui correspond à vos besoins</p>
+            </div>
+
+            <div class="pricing-toggle">
+                <span class="toggle-label">Mensuel</span>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="pricingToggle">
+                    <span class="toggle-slider"></span>
+                </label>
+                <span class="toggle-label">Annuel <span class="discount-badge">-20%</span></span>
+            </div>
+
+            <div class="pricing-grid">
+                <!-- Starter Plan -->
+                <div class="pricing-card">
+                    <div class="pricing-header">
+                        <h3 class="plan-name">Starter</h3>
+                        <p class="plan-description">Parfait pour débuter</p>
+                        <div class="price-wrapper">
+                            <span class="price" data-monthly="29" data-yearly="23">29</span>
+                            <span class="currency">€</span>
+                            <span class="period">/mois</span>
+                        </div>
+                    </div>
+                    <div class="pricing-features">
+                        <ul class="features-list">
+                            <li class="feature-item">
+                                <i data-feather="check"></i>
+                                <span>5 mots-clés surveillés</span>
+                            </li>
+                            <li class="feature-item">
+                                <i data-feather="check"></i>
+                                <span>1 000 articles/mois</span>
+                            </li>
+                            <li class="feature-item">
+                                <i data-feather="check"></i>
+                                <span>Alertes par email</span>
+                            </li>
+                            <li class="feature-item">
+                                <i data-feather="check"></i>
+                                <span>Dashboard basique</span>
+                            </li>
+                            <li class="feature-item">
+                                <i data-feather="check"></i>
+                                <span>Support par email</span>
+                            </li>
+                        </ul>
+                    </div>
+                    <div class="pricing-action">
+                        <a href="{{ url_for('signup') }}" class="btn-pricing">Commencer</a>
+                    </div>
+                </div>
+
+                <!-- Professional Plan -->
+                <div class="pricing-card featured">
+                    <div class="popular-badge">Le plus populaire</div>
+                    <div class="pricing-header">
+                        <h3 class="plan-name">Professionnel</h3>
+                        <p class="plan-description">Pour les équipes qui grandissent</p>
+                        <div class="price-wrapper">
+                            <span class="price" data-monthly="89" data-yearly="71">89</span>
+                            <span class="currency">€</span>
+                            <span class="period">/mois</span>
+                        </div>
+                    </div>
+                    <div class="pricing-features">
+                        <ul class="features-list">
+                            <li class="feature-item">
+                                <i data-feather="check"></i>
+                                <span>25 mots-clés surveillés</span>
+                            </li>
+                            <li class="feature-item">
+                                <i data-feather="check"></i>
+                                <span>10 000 articles/mois</span>
+                            </li>
+                            <li class="feature-item">
+                                <i data-feather="check"></i>
+                                <span>Analyse de sentiment IA</span>
+                            </li>
+                            <li class="feature-item">
+                                <i data-feather="check"></i>
+                                <span>Rapports avancés</span>
+                            </li>
+                            <li class="feature-item">
+                                <i data-feather="check"></i>
+                                <span>Intégrations Slack/Teams</span>
+                            </li>
+                            <li class="feature-item">
+                                <i data-feather="check"></i>
+                                <span>API access</span>
+                            </li>
+                            <li class="feature-item">
+                                <i data-feather="check"></i>
+                                <span>Support prioritaire</span>
+                            </li>
+                        </ul>
+                    </div>
+                    <div class="pricing-action">
+                        <a href="{{ url_for('signup') }}" class="btn-pricing btn-pricing-featured">Commencer</a>
+                    </div>
+                </div>
+
+                <!-- Enterprise Plan -->
+                <div class="pricing-card">
+                    <div class="pricing-header">
+                        <h3 class="plan-name">Entreprise</h3>
+                        <p class="plan-description">Pour les grandes organisations</p>
+                        <div class="price-wrapper">
+                            <span class="price" data-monthly="199" data-yearly="159">199</span>
+                            <span class="currency">€</span>
+                            <span class="period">/mois</span>
+                        </div>
+                    </div>
+                    <div class="pricing-features">
+                        <ul class="features-list">
+                            <li class="feature-item">
+                                <i data-feather="check"></i>
+                                <span>Mots-clés illimités</span>
+                            </li>
+                            <li class="feature-item">
+                                <i data-feather="check"></i>
+                                <span>Articles illimités</span>
+                            </li>
+                            <li class="feature-item">
+                                <i data-feather="check"></i>
+                                <span>IA personnalisée</span>
+                            </li>
+                            <li class="feature-item">
+                                <i data-feather="check"></i>
+                                <span>Multi-utilisateurs</span>
+                            </li>
+                            <li class="feature-item">
+                                <i data-feather="check"></i>
+                                <span>SSO & sécurité avancée</span>
+                            </li>
+                            <li class="feature-item">
+                                <i data-feather="check"></i>
+                                <span>Support dédié</span>
+                            </li>
+                            <li class="feature-item">
+                                <i data-feather="check"></i>
+                                <span>Formation personnalisée</span>
+                            </li>
+                        </ul>
+                    </div>
+                    <div class="pricing-action">
+                        <a href="mailto:contact@newsmonitorpro.com" class="btn-pricing">Nous contacter</a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- FAQ Section -->
+            <div class="pricing-faq">
+                <h2>Questions fréquentes</h2>
+                <div class="faq-grid">
+                    <div class="faq-item">
+                        <h3>Puis-je changer d'offre à tout moment ?</h3>
+                        <p>Oui, vous pouvez upgrader ou downgrader votre abonnement à tout moment. Les changements prennent effet immédiatement.</p>
+                    </div>
+                    <div class="faq-item">
+                        <h3>Y a-t-il une période d'essai gratuite ?</h3>
+                        <p>Oui, nous offrons 14 jours d'essai gratuit sur toutes nos offres, sans engagement.</p>
+                    </div>
+                    <div class="faq-item">
+                        <h3>Comment fonctionne la facturation ?</h3>
+                        <p>La facturation est mensuelle ou annuelle selon votre choix. Vous recevez une facture par email et pouvez payer par carte bancaire.</p>
+                    </div>
+                    <div class="faq-item">
+                        <h3>Puis-je annuler mon abonnement ?</h3>
+                        <p>Oui, vous pouvez annuler votre abonnement à tout moment depuis votre tableau de bord. Aucun frais d'annulation.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA Section -->
+    <section class="cta-section">
+        <div class="cta-background"></div>
+        <div class="container">
+            <div class="cta-content">
+                <h2 class="cta-title">Prêt à commencer ?</h2>
+                <p class="cta-subtitle">Essayez NewsMonitor Pro gratuitement pendant 14 jours</p>
+                <a href="{{ url_for('signup') }}" class="btn-cta-large">
+                    <i data-feather="arrow-right"></i>
+                    Commencer l'essai gratuit
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="homepage-footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-brand">
+                    <div class="logo">
+                        <i data-feather="trending-up" class="logo-icon"></i>
+                        NewsMonitor Pro
+                    </div>
+                    <p class="footer-description">La plateforme de veille média intelligente</p>
+                </div>
+                <div class="footer-info">
+                    <p>&copy; 2025 NewsMonitor Pro. Tous droits réservés.</p>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        feather.replace();
+        
+        // Pricing toggle functionality
+        const pricingToggle = document.getElementById('pricingToggle');
+        const priceElements = document.querySelectorAll('.price');
+        
+        pricingToggle.addEventListener('change', function() {
+            const isYearly = this.checked;
+            
+            priceElements.forEach(priceEl => {
+                const monthlyPrice = priceEl.getAttribute('data-monthly');
+                const yearlyPrice = priceEl.getAttribute('data-yearly');
+                
+                if (isYearly) {
+                    priceEl.textContent = yearlyPrice;
+                } else {
+                    priceEl.textContent = monthlyPrice;
+                }
+            });
+        });
+    </script>
+</body>
+</html>

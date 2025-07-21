@@ -43,9 +43,9 @@ class KeywordExpander:
             Générez des mots-clés supplémentaires pertinents pour surveiller l'actualité liée à ces termes.
             
             Règles:
-            1. Proposez 5-8 mots-clés français supplémentaires
-            2. Proposez 5-8 mots-clés anglais supplémentaires
-            3. Incluez des synonymes, termes connexes, et variations
+            1. Proposez 10 mots-clés français supplémentaires
+            2. Proposez 10 mots-clés anglais supplémentaires
+            3. Incluez des synonymes, termes connexes, variations et mots du meme champ sémantique
             4. Pensez aux termes que les journalistes utilisent
             5. Évitez les mots-clés trop génériques
             

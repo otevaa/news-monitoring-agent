@@ -1,4 +1,5 @@
 from flask import Flask, render_template, request, redirect, session, url_for, jsonify, flash
+from functools import wraps
 from agent.fetch_multi_source import fetch_articles_multi_source, fetch_articles_rss
 from agent.google_oauth import start_auth, finish_auth, get_sheets_service, get_user_info
 from agent.async_campaign_manager import AsyncCampaignManager
@@ -7,6 +8,10 @@ from agent.campaign_manager import CampaignManager
 from agent.integrations import IntegrationManager
 from agent.scheduler import campaign_scheduler
 from agent.user_profile_manager import UserProfileManager
+from database.models import DatabaseManager, UserManager
+from database.managers import DatabaseCampaignManager, DatabaseUserProfileManager, DatabaseIntegrationManager
+from auth.auth_manager import EnhancedAuthManager
+from auth.security_manager import SecurityManager
 import json
 import atexit
 import os
@@ -19,35 +24,21 @@ from dotenv import load_dotenv
 load_dotenv()
 
 app = Flask(__name__)
-app.secret_key = os.getenv('FLASK_SECRET_KEY', 'your-secret-key-change-in-production')
+app.secret_key = os.getenv('FLASK_SECRET_KEY', os.urandom(24).hex())
 
-# Initialize managers with error handling
+# Initialize secure database system
 try:
-    campaign_manager = CampaignManager()
-    print("✅ Campaign Manager initialized")
+    db_manager = DatabaseManager()
+    auth_manager = EnhancedAuthManager()
+    user_manager = UserManager(db_manager)
+    campaign_manager = DatabaseCampaignManager(db_manager)
+    profile_manager = DatabaseUserProfileManager(db_manager) 
+    integration_manager = DatabaseIntegrationManager(db_manager)
+    security_manager = SecurityManager()
+    print("✅ Secure database system initialized")
 except Exception as e:
-    print(f"❌ Campaign Manager initialization failed: {e}")
-    # Create a fallback class with safe methods
-    class FallbackCampaignManager:
-        def get_active_campaigns(self): return []
-        def get_total_articles_count(self): return 0
-        def get_articles_today_count(self): return 0
-        def get_recent_campaigns(self, limit=5): return []
-        def get_campaigns(self): return []
-        def get_all_campaigns(self): return []
-        def get_campaign(self, campaign_id=None): 
-            if campaign_id is None:
-                return None
-            return None
-        def get_campaign_by_id(self, id): return None
-        def create_campaign(self, data): return None
-        def update_campaign(self, id, data): return False
-        def delete_campaign(self, id): return False
-        def pause_campaign(self, id): return False
-        def resume_campaign(self, id): return False
-        def get_total_campaigns_count(self): return 0
-        def _save_campaigns(self): pass
-    campaign_manager = FallbackCampaignManager()
+    print(f"❌ Database system initialization failed: {e}")
+    sys.exit(1)
 
 try:
     integration_manager = IntegrationManager()
@@ -121,63 +112,221 @@ campaign_scheduler.start()
 atexit.register(lambda: campaign_scheduler.stop())
 
 # Helper functions to reduce redundancy
-def get_dashboard_stats():
-    """Get common dashboard statistics"""
-    return {
-        'active_campaigns': len(campaign_manager.get_active_campaigns()),
-        'total_articles': campaign_manager.get_total_articles_count(),
-        'articles_today': campaign_manager.get_articles_today_count(),
-        'integrations_count': integration_manager.get_active_integrations_count()
-    }
+def get_dashboard_stats(user_id: str):
+    """Get dashboard statistics for a specific user"""
+    try:
+        stats = campaign_manager.get_user_stats(user_id)
+        return {
+            'active_campaigns': stats.get('active_campaigns', 0),
+            'total_articles': stats.get('total_articles', 0),
+            'articles_today': stats.get('articles_today', 0),
+            'total_campaigns': stats.get('total_campaigns', 0)
+        }
+    except Exception as e:
+        print(f"Error getting dashboard stats: {e}")
+        return {
+            'active_campaigns': 0,
+            'total_articles': 0,
+            'articles_today': 0,
+            'total_campaigns': 0
+        }
 
-def get_dashboard_integrations():
+def get_dashboard_integrations(user_id: str):
     """Get integration status for dashboard"""
-    return {
-        'google_sheets': sheets_manager.is_google_sheets_connected(),
-        'airtable': integration_manager.is_airtable_configured()
-    }
+    try:
+        db_integration_manager = DatabaseIntegrationManager(db_manager)
+        return {
+            'google_sheets': db_integration_manager.is_google_sheets_connected(user_id),
+            'airtable': False  # Will implement later
+        }
+    except Exception as e:
+        print(f"Error getting integrations: {e}")
+        return {
+            'google_sheets': False,
+            'airtable': False
+        }
 
-def check_google_sheets_access():
+def check_google_sheets_access(user_id: str):
     """Check if Google Sheets is connected and return appropriate response"""
-    if not sheets_manager.is_google_sheets_connected():
+    db_integration_manager = DatabaseIntegrationManager(db_manager)
+    if not db_integration_manager.is_google_sheets_connected(user_id):
         return jsonify({'error': 'Not connected to Google Sheets'}), 401
     return None
 
+# Authentication decorator
+def login_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'user_id' not in session:
+            return redirect(url_for('auth_page'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+# Home and authentication routes
 @app.route("/")
 def home():
-    # Clear any lingering flash messages to prevent them from appearing on dashboard
-    session.pop('_flashes', None)
+    """Home page with quick search - redirect to dashboard if authenticated"""
+    # If user is already authenticated, redirect to dashboard
+    if auth_manager.is_authenticated():
+        return redirect(url_for('dashboard'))
     
-    # Get dashboard data (without forcing Google Sheets connection)
-    stats = get_dashboard_stats()
-    campaigns = campaign_manager.get_recent_campaigns(limit=5)
+    return render_template('home.html')
+
+@app.route('/signin', methods=['GET', 'POST'])
+def signin():
+    """Sign in page"""
+    if request.method == 'POST':
+        email = request.form.get('email')
+        password = request.form.get('password')
+        
+        if not email or not password:
+            flash('Email et mot de passe requis', 'error')
+            return render_template('auth.html')
+        
+        success, message = auth_manager.login_user(email, password, request)
+        if success:
+            flash(message, 'success')
+            return redirect(url_for('dashboard'))
+        else:
+            flash(message, 'error')
     
-    # Only check integrations if user has already authenticated
-    integrations = {
-        'google_sheets': 'credentials' in session and sheets_manager.is_google_sheets_connected(),
-        'airtable': integration_manager.is_airtable_configured()
-    }
+    return render_template('auth.html')
+
+@app.route('/signup', methods=['GET', 'POST']) 
+def signup():
+    """Sign up page"""
+    if request.method == 'POST':
+        name = request.form.get('name')
+        email = request.form.get('email')
+        password = request.form.get('password')
+        confirm_password = request.form.get('confirm_password')
+        terms = request.form.get('terms')
+        
+        if not all([name, email, password, confirm_password]):
+            flash('Tous les champs sont requis', 'error')
+            return render_template('auth.html')
+        
+        if password != confirm_password:
+            flash('Les mots de passe ne correspondent pas', 'error')
+            return render_template('auth.html')
+        
+        if not terms:
+            flash('Vous devez accepter les conditions d\'utilisation', 'error')
+            return render_template('auth.html')
+        
+        # Type checks to satisfy linter
+        if not isinstance(name, str) or not isinstance(email, str) or not isinstance(password, str):
+            flash('Données invalides', 'error')
+            return render_template('auth.html')
+        
+        user_id = auth_manager.register_user(email, password, name)
+        if user_id:
+            flash('Compte créé avec succès ! Vous pouvez maintenant vous connecter.', 'success')
+            return redirect(url_for('signin'))
+        else:
+            flash('Erreur lors de la création du compte. Cet email est peut-être déjà utilisé.', 'error')
+    
+    return render_template('auth.html')
+
+@app.route('/logout')
+def logout():
+    """Logout user"""
+    auth_manager.logout_user()
+    flash("Déconnexion réussie", 'success')
+    return redirect(url_for('home'))
+
+# Public SaaS pages
+@app.route('/about')
+def about():
+    """About page"""
+    return render_template('about.html')
+
+@app.route('/team')
+def team():
+    """Team page"""
+    return render_template('team.html')
+
+@app.route('/pricing')
+def pricing():
+    """Pricing page"""
+    return render_template('pricing.html')
+
+@app.route('/api/quick-search', methods=['POST'])
+def quick_search():
+    """Quick search for home page"""
+    try:
+        data = request.get_json()
+        query = data.get('query', '')
+        limit = data.get('limit', 3)
+        
+        if not query:
+            return jsonify({'articles': []})
+        
+        # Perform quick search (limited results for non-authenticated users)
+        articles = fetch_articles_multi_source(query, max_items=limit)
+        
+        # Format articles for display
+        formatted_articles = []
+        for article in articles[:limit]:
+            formatted_articles.append({
+                'title': article.get('title', ''),
+                'source': article.get('source', ''),
+                'date': article.get('date', ''),
+                'summary': article.get('summary', article.get('description', ''))[:150] + '...'
+            })
+        
+        return jsonify({'articles': formatted_articles})
+    
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# Secured routes (require authentication)
+@app.route("/dashboard")
+@auth_manager.require_auth
+def dashboard():
+    """Dashboard page - secured"""
+    # Get current user
+    current_user = auth_manager.get_current_user()
+    if not current_user:
+        return redirect(url_for('signin'))
+    
+    user_id = current_user['id']
+    
+    # Get dashboard data
+    stats = get_dashboard_stats(user_id)
+    campaigns = campaign_manager.get_user_campaigns(user_id)[:5]  # Recent campaigns
+    integrations = get_dashboard_integrations(user_id)
     
     return render_template("dashboard.html", 
                          stats=stats, 
                          campaigns=campaigns, 
-                         integrations=integrations)
+                         integrations=integrations,
+                         user=current_user)
 
 @app.route("/veille")
+@auth_manager.require_auth
 def veille():
+    """Monitoring page - secured"""
+    current_user = auth_manager.get_current_user()
+    if not current_user:
+        return redirect(url_for('signin'))
+    
+    user_id = current_user['id']
     query = request.args.get("q")
+    
     if not query or query.strip() == "":
         # Return to dashboard with error, including all required template variables
-        stats = get_dashboard_stats()
-        campaigns = campaign_manager.get_recent_campaigns(limit=5)
-        integrations = get_dashboard_integrations()
+        stats = get_dashboard_stats(user_id)
+        campaigns = campaign_manager.get_user_campaigns(user_id)[:5]
+        integrations = get_dashboard_integrations(user_id)
         
         return render_template("dashboard.html", 
                              articles=[], 
                              error="Veuillez saisir un mot-clé.",
                              stats=stats,
                              campaigns=campaigns,
-                             integrations=integrations)
+                             integrations=integrations,
+                             user=current_user)
 
     try:
         articles = fetch_articles_multi_source(query, max_items=25, show_keyword_suggestions=False)
@@ -196,7 +345,7 @@ def veille():
         range_name = "Feuille1!A1"
 
         values = [
-            [a["date"], a["source"], a["titre"], a["url"], a["resume"]]
+            [a["date"], a["source"], a["titre"], a["url"]]
             for a in articles
         ]
         body = {"values": values}
@@ -212,30 +361,38 @@ def veille():
             print(f"Error saving to Google Sheets: {e}")
 
     # Include all required template variables for successful search
-    stats = get_dashboard_stats()
-    campaigns = campaign_manager.get_recent_campaigns(limit=5)
-    integrations = get_dashboard_integrations()
+    stats = get_dashboard_stats(user_id)
+    campaigns = campaign_manager.get_user_campaigns(user_id)[:5]
+    integrations = get_dashboard_integrations(user_id)
 
     return render_template("dashboard.html", 
                          articles=articles,
                          stats=stats,
                          campaigns=campaigns,
-                         integrations=integrations)
+                         integrations=integrations,
+                         user=current_user)
 
 # Campaign Management Routes
 @app.route("/campaigns")
+@auth_manager.require_auth
 def campaigns():
+    """Campaigns management page - secured"""
     # Clear any lingering flash messages to prevent them from appearing on campaigns page
     session.pop('_flashes', None)
     
-    all_campaigns = campaign_manager.get_all_campaigns()
+    current_user = auth_manager.get_current_user()
+    if not current_user:
+        return redirect(url_for('signin'))
+    
+    user_id = current_user['id']
+    all_campaigns = campaign_manager.get_user_campaigns(user_id)
     
     # Add spreadsheet URLs for campaigns that have Google Sheets integration
     for campaign in all_campaigns:
         if 'google_sheets' in campaign.get('integrations', []) and campaign.get('spreadsheet_id'):
             campaign['spreadsheet_url'] = f"https://docs.google.com/spreadsheets/d/{campaign['spreadsheet_id']}"
         
-    return render_template("campaigns.html", campaigns=all_campaigns)
+    return render_template("campaigns.html", campaigns=all_campaigns, user=current_user)
 
 @app.route("/campaigns/create")
 def create_campaign():
@@ -248,19 +405,41 @@ def create_campaign():
     return render_template("campaign_form.html", prefill=prefill_data)
 
 @app.route("/campaigns/<campaign_id>/edit")
+@auth_manager.require_auth
 def edit_campaign(campaign_id):
-    campaign = campaign_manager.get_campaign(campaign_id)
-    return render_template("campaign_form.html", campaign=campaign)
+    """Edit campaign form - secured"""
+    current_user = auth_manager.get_current_user()
+    if not current_user:
+        return redirect(url_for('signin'))
+    
+    user_id = current_user['id']
+    campaign = campaign_manager.get_campaign(campaign_id, user_id)
+    
+    if not campaign:
+        flash('Campagne non trouvée', 'error')
+        return redirect(url_for('campaigns'))
+    
+    return render_template("campaign_form.html", campaign=campaign, user=current_user)
 
 @app.route("/campaigns/create", methods=["POST"])
 @app.route("/campaigns/<campaign_id>/edit", methods=["POST"])
+@auth_manager.require_auth
 def save_campaign(campaign_id=None):
-    """Save or update a campaign"""
+    """Save or update a campaign - secured"""
+    current_user = auth_manager.get_current_user()
+    if not current_user:
+        return redirect(url_for('signin'))
+    
+    user_id = current_user['id']
+    
     try:
-        # Get user AI preferences
-        user_profile = user_profile_manager.get_user_profile(user_id='default')
+        # Get user AI preferences from the database
+        try:
+            user_profile = profile_manager.get_user_profile(user_id)
+        except:
+            user_profile = {}
         
-        # Campaign data
+        # Campaign data - keyword expansion enabled by default
         data = {
             'name': request.form.get('name', '').strip(),
             'keywords': request.form.get('keywords', '').strip(),
@@ -268,21 +447,11 @@ def save_campaign(campaign_id=None):
             'integrations': request.form.getlist('integrations'),
             'max_articles': int(request.form.get('max_articles', 25)),
             'description': request.form.get('description', '').strip(),
-            # AI Enhancement Options - now using defaults from user profile
-            'ai_filtering_enabled': request.form.get('ai_filtering_enabled', 'false').lower() == 'true',
-            'keyword_expansion_enabled': request.form.get('keyword_expansion_enabled', 'false').lower() == 'true',
-            'priority_alerts_enabled': request.form.get('priority_alerts_enabled', 'false').lower() == 'true',
-            'ai_model': user_profile.get('ai_model', 'ollama-deepseek-r1:1.5b')
+            # AI Enhancement Options - keyword expansion enabled by default, others removed
+            'keyword_expansion_enabled': True,  # Always enabled - core feature
+            'ai_model': user_profile.get('ai_model', 'ollama-deepseek-r1:1.5b') if user_profile else 'ollama-deepseek-r1:1.5b'
         }
 
-        # Add debug logging
-        print(f"DEBUG: Form data received:")
-        print(f"  Name: '{data['name']}'")
-        print(f"  Keywords: '{data['keywords']}'")
-        print(f"  Frequency: '{data['frequency']}'")
-        print(f"  Max articles: {data['max_articles']}")
-        print(f"  AI filtering: {data['ai_filtering_enabled']}")
-        
         # Validate basic inputs
         if not data['name']:
             flash("Erreur: Le nom de la campagne ne peut pas être vide", 'error')
@@ -298,12 +467,12 @@ def save_campaign(campaign_id=None):
         
         if campaign_id:
             # Update existing campaign
-            campaign_manager.update_campaign(campaign_id, data)
+            campaign_manager.update_campaign(campaign_id, user_id, data)
             flash("Campagne mise à jour avec succès !", 'success')
             return redirect(url_for("campaigns"))
         else:
             # Create new campaign
-            new_campaign_id = campaign_manager.create_campaign(data)
+            new_campaign_id = campaign_manager.create_campaign(user_id, data)
             
             # Handle Google Sheets integration
             if "credentials" in session and 'google_sheets' in data.get('integrations', []):
@@ -315,27 +484,19 @@ def save_campaign(campaign_id=None):
                         if spreadsheet_choice == 'existing' and spreadsheet_id:
                             # Link existing spreadsheet to campaign
                             if new_campaign_id:
-                                campaign = campaign_manager.get_campaign(new_campaign_id)
-                                if campaign:
-                                    campaign['spreadsheet_id'] = spreadsheet_id
-                                    campaign['spreadsheet_url'] = f"https://docs.google.com/spreadsheets/d/{spreadsheet_id}"
-                                    campaign_manager._save_campaigns()
+                                campaign_manager.update_campaign_spreadsheet(new_campaign_id, user_id, spreadsheet_id, f"https://docs.google.com/spreadsheets/d/{spreadsheet_id}")
                         else:
                             # Create new spreadsheet
                             sheet_info = sheets_manager.create_campaign_spreadsheet(data['name'])
                             if sheet_info and new_campaign_id:
-                                campaign = campaign_manager.get_campaign(new_campaign_id)
-                                if campaign:
-                                    campaign['spreadsheet_id'] = sheet_info['id']
-                                    campaign['spreadsheet_url'] = sheet_info['url']
-                                    campaign_manager._save_campaigns()
+                                campaign_manager.update_campaign_spreadsheet(new_campaign_id, user_id, sheet_info['id'], sheet_info['url'])
                 except Exception as e:
                     print(f"Error setting up Google Sheets for campaign: {e}")
                     flash("Campagne créée, mais erreur lors de la configuration de Google Sheets.", 'warning')
             
             # Step 2: Initial campaign fetch with expanded keywords
             if new_campaign_id:
-                campaign = campaign_manager.get_campaign(new_campaign_id)
+                campaign = campaign_manager.get_campaign(new_campaign_id, user_id)
                 if campaign:
                     try:
                         # Run initial campaign with expanded keywords
@@ -354,23 +515,46 @@ def save_campaign(campaign_id=None):
         return redirect(url_for("create_campaign") if not campaign_id else url_for("campaigns"))
 
 @app.route("/campaigns/<campaign_id>/pause", methods=["POST"])
+@auth_manager.require_auth
 def pause_campaign(campaign_id):
-    success = campaign_manager.pause_campaign(campaign_id)
+    """Pause campaign - secured"""
+    current_user = auth_manager.get_current_user()
+    if not current_user:
+        return redirect(url_for('signin'))
+    
+    user_id = current_user['id']
+    success = campaign_manager.pause_campaign(campaign_id, user_id)
     return jsonify({'success': success})
 
 @app.route("/campaigns/<campaign_id>/resume", methods=["POST"])
+@auth_manager.require_auth
 def resume_campaign(campaign_id):
-    success = campaign_manager.resume_campaign(campaign_id)
+    """Resume campaign - secured"""
+    current_user = auth_manager.get_current_user()
+    if not current_user:
+        return redirect(url_for('signin'))
+    
+    user_id = current_user['id']
+    success = campaign_manager.resume_campaign(campaign_id, user_id)
     return jsonify({'success': success})
 
 @app.route("/campaigns/<campaign_id>", methods=["DELETE"])
+@auth_manager.require_auth
 def delete_campaign(campaign_id):
+    """Delete campaign - secured"""
+    current_user = auth_manager.get_current_user()
+    if not current_user:
+        return jsonify({'success': False, 'error': 'Authentication required'}), 401
+    
+    user_id = current_user['id']
     data = request.get_json() or {}
     delete_sheet = data.get('delete_sheet', False)
     
-    # Get campaign info before deletion
-    campaign = campaign_manager.get_campaign(campaign_id)
-    
+    # Get campaign info before deletion to verify ownership
+    campaign = campaign_manager.get_campaign(campaign_id, user_id)
+    if not campaign:
+        return jsonify({'success': False, 'error': 'Campaign not found or access denied'}), 404
+
     if campaign and delete_sheet and campaign.get('spreadsheet_id'):
         # Delete the associated Google Sheet
         try:
@@ -385,11 +569,10 @@ def delete_campaign(campaign_id):
         except Exception as e:
             print(f"Error deleting spreadsheet: {e}")
     
-    success = campaign_manager.delete_campaign(campaign_id)
-    return jsonify({'success': success})
-
-# Integration Routes
+    success = campaign_manager.delete_campaign(campaign_id, user_id)
+    return jsonify({'success': success})# Integration Routes
 @app.route("/integrations")
+@login_required
 def integrations():
     integrations_status = {
         'google_sheets': integration_manager.get_google_sheets_status(),
@@ -418,48 +601,68 @@ def disconnect_integration(integration):
 # Profile Routes
 @app.route("/profile")
 def profile():
-    # Get user email from Google OAuth session if available
-    user_email = 'user@example.com'
-    if 'credentials' in session:
-        try:
-            user_info = get_user_info()
-            if user_info:
-                user_email = user_info.get('email', 'user@example.com')
-        except Exception as e:
-            print(f"Error getting user info: {e}")
+    if 'user_id' not in session:
+        return redirect('/auth')
+    
+    user_id = session['user_id']
+    
+    # Get real user data from database
+    user = user_manager.get_user_by_id(user_id)
+    if not user:
+        session.clear()
+        return redirect('/auth')
     
     user_data = {
-        'name': 'Utilisateur Demo',
-        'email': user_email,
-        'created_at': '2024-01-01',
-        'api_key': None
+        'name': user['name'],
+        'email': user['email'],
+        'created_at': user['created_at'][:10] if user.get('created_at') else '2024-01-01',
+        'api_key': None  # Add API key handling if needed
     }
+    
+    # Get user statistics from database
+    user_stats = campaign_manager.get_user_stats(user_id)
+    
+    # Check actual integrations status
+    integrations_count = 0
+    try:
+        # Check Google Sheets integration
+        if 'credentials' in session:
+            integrations_count += 1
+    except:
+        pass
+    
     stats = {
-        'total_campaigns': campaign_manager.get_total_campaigns_count(),
-        'total_articles': campaign_manager.get_total_articles_count(),
-        'integrations_count': integration_manager.get_active_integrations_count()
+        'total_campaigns': user_stats.get('total_campaigns', 0),
+        'total_articles': user_stats.get('total_articles', 0),
+        'integrations_count': integrations_count
     }
     
     # Get user profile for AI settings
-    user_profile = user_profile_manager.get_user_profile(user_id='default')
+    user_profile = user_profile_manager.get_user_profile(user_id=user_id)
     
     return render_template("profile.html", user=user_data, stats=stats, profile=user_profile)
 
 @app.route("/profile/ai-settings")
 def profile_ai_settings():
-    user_profile = user_profile_manager.get_user_profile(user_id='default')
+    if 'user_id' not in session:
+        return redirect('/auth')
+    user_id = session['user_id']
+    user_profile = user_profile_manager.get_user_profile(user_id=user_id)
     return render_template("profile_ai_settings.html", profile=user_profile)
 
 @app.route("/profile/ai-settings", methods=["POST"])
 def save_ai_settings():
+    """Save AI settings - keyword expansion enabled by default"""
+    if 'user_id' not in session:
+        return redirect('/auth')
+    user_id = session['user_id']
+    
     settings = {
         'ai_model': request.form.get('ai_model', 'ollama-deepseek-r1:1.5b'),
-        'keyword_expansion_enabled': 'keyword_expansion_enabled' in request.form,
-        'ai_filtering_enabled': 'ai_filtering_enabled' in request.form,
-        'priority_alerts_enabled': 'priority_alerts_enabled' in request.form
+        'keyword_expansion_enabled': True,  # Always enabled - core feature
     }
     
-    success = user_profile_manager.update_user_profile(user_id='default', updates=settings)
+    success = user_profile_manager.update_user_profile(user_id=user_id, updates=settings)
     
     if request.content_type == 'application/json':
         return jsonify({'success': success})
@@ -494,7 +697,7 @@ def api_preview():
 
 @app.route("/api/campaigns/status")
 def api_campaigns_status():
-    campaigns = campaign_manager.get_all_campaigns()
+    campaigns = campaign_manager.get_user_campaigns('default')
     return jsonify({'campaigns': campaigns})
 
 @app.route("/auth")
@@ -509,14 +712,6 @@ def reauth():
         del session["credentials"]
     integration_manager.update_google_sheets_status(False)
     return start_auth()
-
-@app.route("/auth/logout")
-def logout():
-    """Logout and clear all session data"""
-    session.clear()
-    integration_manager.update_google_sheets_status(False)
-    flash("Déconnexion réussie", 'success')
-    return redirect(url_for("home"))
 
 @app.route("/oauth2callback")
 def oauth2callback():
@@ -660,7 +855,7 @@ def save_search_results():
 def get_campaigns_stats():
     """Get real-time campaign statistics"""
     try:
-        campaigns = campaign_manager.get_all_campaigns()
+        campaigns = campaign_manager.get_user_campaigns('default')
         
         # Calculate overall stats
         total_campaigns = len(campaigns)
@@ -709,7 +904,7 @@ def save_campaign_results(campaign_id):
     spreadsheet_id = data.get('spreadsheet_id')  # for existing
     articles = data.get('articles', [])
     
-    campaign = campaign_manager.get_campaign(campaign_id)
+    campaign = campaign_manager.get_campaign(campaign_id, 'default')
     if not campaign:
         return jsonify({'error': 'Campaign not found'}), 404
     
@@ -738,6 +933,7 @@ def save_campaign_results(campaign_id):
         return jsonify({'success': False, 'error': 'Erreur lors de la sauvegarde'})
 
 @app.route("/files")
+@login_required
 def file_management():
     """File and folder management page"""
     if not sheets_manager.is_google_sheets_connected():
@@ -750,7 +946,7 @@ def file_management():
         all_spreadsheets = sheets_manager.list_user_spreadsheets()
         
         # Get campaigns with their associated spreadsheets
-        campaigns = campaign_manager.get_all_campaigns()
+        campaigns = campaign_manager.get_user_campaigns('default')
         campaign_spreadsheets = {c.get('spreadsheet_id'): c['name'] for c in campaigns if c.get('spreadsheet_id')}
         
         # Mark which spreadsheets are associated with campaigns
@@ -781,7 +977,7 @@ def delete_file(file_id):
         # Find associated campaign if it exists
         campaign_to_delete = None
         if delete_campaign:
-            campaigns = campaign_manager.get_all_campaigns()
+            campaigns = campaign_manager.get_user_campaigns('default')
             for campaign in campaigns:
                 if campaign.get('spreadsheet_id') == file_id:
                     campaign_to_delete = campaign
@@ -793,7 +989,7 @@ def delete_file(file_id):
         if success:
             # Delete associated campaign if requested
             if campaign_to_delete and delete_campaign:
-                campaign_manager.delete_campaign(campaign_to_delete['id'])
+                campaign_manager.delete_campaign(campaign_to_delete['id'], 'default')
             
             return jsonify({'success': True})
         else:

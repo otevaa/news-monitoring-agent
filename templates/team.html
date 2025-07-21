@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Notre équipe - NewsMonitor Pro</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://unpkg.com/feather-icons"></script>
+</head>
+<body>
+    <!-- Navigation -->
+    <header class="homepage-header">
+        <div class="container">
+            <div class="header-content">
+                <a href="/" class="logo">
+                    <i data-feather="trending-up" class="logo-icon"></i>
+                    NewsMonitor Pro
+                </a>
+                
+                <nav class="header-nav">
+                    <a href="/" class="nav-link">Accueil</a>
+                    <a href="/about" class="nav-link">À propos</a>
+                    <a href="/team" class="nav-link active">Équipe</a>
+                    <a href="/pricing" class="nav-link">Tarifs</a>
+                </nav>
+                
+                <div class="header-menu">
+                    <a href="{{ url_for('signin') }}" class="btn-outline">Connexion</a>
+                    <a href="{{ url_for('signup') }}" class="btn-primary-cta">S'inscrire</a>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Team Section -->
+    <section class="page-section">
+        <div class="container">
+            <div class="page-header">
+                <h1 class="page-title">Notre équipe</h1>
+                <p class="page-subtitle">Les experts qui révolutionnent la veille média</p>
+            </div>
+
+            <div class="team-grid">
+                <div class="team-member">
+                    <div class="team-avatar">
+                        <i data-feather="user"></i>
+                    </div>
+                    <h3 class="team-name">David Otevaa</h3>
+                    <p class="team-role">Fondateur & CEO</p>
+                    <p class="team-description">Expert en IA et développement produit avec plus de 10 ans d'expérience dans la tech.</p>
+                    <div class="team-social">
+                        <a href="#" class="social-link"><i data-feather="linkedin"></i></a>
+                        <a href="#" class="social-link"><i data-feather="twitter"></i></a>
+                    </div>
+                </div>
+
+                <div class="team-member">
+                    <div class="team-avatar">
+                        <i data-feather="user"></i>
+                    </div>
+                    <h3 class="team-name">Marie Dubois</h3>
+                    <p class="team-role">CTO</p>
+                    <p class="team-description">Architecte logiciel passionnée par l'innovation et les technologies d'IA avancées.</p>
+                    <div class="team-social">
+                        <a href="#" class="social-link"><i data-feather="linkedin"></i></a>
+                        <a href="#" class="social-link"><i data-feather="github"></i></a>
+                    </div>
+                </div>
+
+                <div class="team-member">
+                    <div class="team-avatar">
+                        <i data-feather="user"></i>
+                    </div>
+                    <h3 class="team-name">Thomas Martin</h3>
+                    <p class="team-role">Lead Data Scientist</p>
+                    <p class="team-description">Spécialiste en machine learning et traitement du langage naturel.</p>
+                    <div class="team-social">
+                        <a href="#" class="social-link"><i data-feather="linkedin"></i></a>
+                    </div>
+                </div>
+
+                <div class="team-member">
+                    <div class="team-avatar">
+                        <i data-feather="user"></i>
+                    </div>
+                    <h3 class="team-name">Sophie Leroy</h3>
+                    <p class="team-role">Head of Product</p>
+                    <p class="team-description">Designer UX/UI avec une vision centrée sur l'expérience utilisateur.</p>
+                    <div class="team-social">
+                        <a href="#" class="social-link"><i data-feather="linkedin"></i></a>
+                        <a href="#" class="social-link"><i data-feather="dribbble"></i></a>
+                    </div>
+                </div>
+            </div>
+
+            <div class="team-values">
+                <h2>Nos valeurs</h2>
+                <div class="values-grid">
+                    <div class="value-card">
+                        <div class="value-icon">
+                            <i data-feather="target"></i>
+                        </div>
+                        <h3>Excellence</h3>
+                        <p>Nous nous efforçons de fournir la meilleure technologie et le meilleur service possible.</p>
+                    </div>
+                    
+                    <div class="value-card">
+                        <div class="value-icon">
+                            <i data-feather="users"></i>
+                        </div>
+                        <h3>Collaboration</h3>
+                        <p>Nous croyons en la force du travail d'équipe et de la diversité des perspectives.</p>
+                    </div>
+                    
+                    <div class="value-card">
+                        <div class="value-icon">
+                            <i data-feather="lightbulb"></i>
+                        </div>
+                        <h3>Innovation</h3>
+                        <p>Nous repoussons constamment les limites de ce qui est possible.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA Section -->
+    <section class="cta-section">
+        <div class="cta-background"></div>
+        <div class="container">
+            <div class="cta-content">
+                <h2 class="cta-title">Rejoignez notre aventure</h2>
+                <p class="cta-subtitle">Découvrez comment notre équipe peut transformer votre veille média</p>
+                <a href="{{ url_for('signup') }}" class="btn-cta-large">
+                    <i data-feather="arrow-right"></i>
+                    Essayer gratuitement
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="homepage-footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-brand">
+                    <div class="logo">
+                        <i data-feather="trending-up" class="logo-icon"></i>
+                        NewsMonitor Pro
+                    </div>
+                    <p class="footer-description">La plateforme de veille média intelligente</p>
+                </div>
+                <div class="footer-info">
+                    <p>&copy; 2025 NewsMonitor Pro. Tous droits réservés.</p>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        feather.replace();
+    </script>
+</body>
+</html>

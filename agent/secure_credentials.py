@@ -13,26 +13,28 @@ load_dotenv()
 class SecureCredentialManager:
     """Secure credential management for API keys and sensitive data"""
     
-    def __init__(self, credentials_file: str = ".secure_credentials"):
-        self.credentials_file = credentials_file
+    def __init__(self):
+        # Use environment-based key management only
         self.master_key = self._get_or_create_master_key()
         self.fernet = Fernet(self.master_key)
+        # Initialize memory cache for credentials
+        self.memory_cache = {}
     
     def _get_or_create_master_key(self) -> bytes:
-        """Get existing master key or create a new one"""
-        if os.path.exists('.master_key'):
+        """Get master key from environment or create one in memory"""
+        # Try to get from environment first
+        key_env = os.environ.get('NEWSMONITOR_MASTER_KEY')
+        if key_env:
             try:
-                with open('.master_key', 'rb') as key_file:
-                    key = key_file.read()
-                # Ensure proper permissions on existing file
-                os.chmod('.master_key', 0o600)
-                return key
-            except Exception as e:
-                print(f"Error reading master key: {e}")
-                # If we can't read the existing key, create a new one
-                return self._create_master_key()
-        else:
-            return self._create_master_key()
+                return base64.b64decode(key_env.encode())
+            except:
+                pass
+        
+        # Generate a key for this session only
+        key = Fernet.generate_key()
+        # Store in environment for this session
+        os.environ['NEWSMONITOR_MASTER_KEY'] = base64.b64encode(key).decode()
+        return key
     
     def _create_master_key(self) -> bytes:
         """Create a new master key for encryption"""
@@ -117,25 +119,26 @@ class SecureCredentialManager:
             return []
     
     def _load_credentials(self) -> Dict:
-        """Load credentials from file"""
-        if os.path.exists(self.credentials_file):
-            try:
-                with open(self.credentials_file, 'r') as f:
-                    return json.load(f)
-            except (json.JSONDecodeError, FileNotFoundError):
-                return {}
-        return {}
+        """Load credentials from environment and memory"""
+        # Load from environment variables and in-memory storage
+        env_creds = {}
+        for key, value in os.environ.items():
+            if key.startswith('SECURE_CRED_'):
+                cred_name = key[12:]  # Remove 'SECURE_CRED_' prefix
+                env_creds[cred_name] = value
+        
+        # Merge with in-memory credentials
+        credentials = {**env_creds, **self.memory_cache}
+        return credentials
     
     def _save_credentials(self, credentials: Dict) -> bool:
-        """Save credentials to file"""
+        """Save credentials to memory cache only"""
         try:
-            with open(self.credentials_file, 'w') as f:
-                json.dump(credentials, f, indent=2)
-            # Set secure permissions (owner read/write only)
-            os.chmod(self.credentials_file, 0o600)
+            # Update memory cache
+            self.memory_cache.update(credentials)
             return True
         except Exception as e:
-            print(f"Error saving credentials: {e}")
+            print(f"Error saving credentials to memory: {e}")
             return False
 
 class GoogleCredentialsManager:
