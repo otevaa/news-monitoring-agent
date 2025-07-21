@@ -21,9 +21,9 @@
     </style>
 </head>
 <body>
-    <header class="header">
+    <header class="auth-header">
         <div class="container">
-            <div class="header-content">
+            <div class="auth-header-content">
                 <a href="/" class="logo">
                     <div class="logo-icon">
                         <i data-feather="trending-up"></i>
@@ -31,12 +31,12 @@
                     NewsMonitor Pro
                 </a>
                 
-                <nav class="nav">
-                    <div class="nav-links">
-                        <a href="/" class="nav-link active">Dashboard</a>
-                        <a href="/campaigns" class="nav-link">Campagnes</a>
-                        <a href="/integrations" class="nav-link">Intégrations</a>
-                        <a href="/files" class="nav-link">Fichiers</a>
+                <nav class="auth-nav">
+                    <div class="auth-nav-links">
+                        <a href="/" class="auth-nav-link active">Dashboard</a>
+                        <a href="/campaigns" class="auth-nav-link">Campagnes</a>
+                        <a href="/integrations" class="auth-nav-link">Intégrations</a>
+                        <a href="/files" class="auth-nav-link">Fichiers</a>
                     </div>
                     <button class="mobile-menu-btn" onclick="toggleMobileMenu()">
                         <i data-feather="menu"></i>
@@ -59,16 +59,6 @@
 
     <main class="main">
         <div class="container">
-            <!-- Hero Section -->
-            <div class="hero-section" style="text-align: center; margin-bottom: 3rem;">
-                <h1 style="font-size: 2.5rem; font-weight: 700; color: var(--neutral-800); margin-bottom: 1rem;">
-                    Surveillez l'actualité en temps réel
-                </h1>
-                <p style="font-size: 1.125rem; color: var(--neutral-600); max-width: 600px; margin: 0 auto 2rem;">
-                    Créez des campagnes de veille personnalisées et recevez automatiquement les articles pertinents dans vos outils préférés.
-                </p>
-            </div>
-
             <!-- Alerts -->
             {% with messages = get_flashed_messages(with_categories=true) %}
                 {% if messages %}
@@ -93,7 +83,7 @@
             {% endif %}
 
             <!-- Quick Search and Campaign Creation -->
-            <div class="search-campaign-section" style="display: grid; grid-template-columns: 2fr 1fr; gap: 1.5rem; margin-bottom: 2rem;">
+            <div class="search-campaign-section" style="display: grid; grid-template-columns: 2fr 1fr; gap: 1.5rem; margin-top: 2rem; margin-bottom: 2rem;">
                 <!-- Quick Search -->
                 <div class="card">
                     <div class="card-header">

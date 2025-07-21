@@ -8,16 +8,24 @@ import re
 from typing import List, Dict, Optional, Tuple
 from datetime import datetime, timedelta
 from .secure_credentials import GoogleCredentialsManager
+from database.models import DatabaseManager
+from database.managers import DatabaseIntegrationManager
 
 class GoogleSheetsManager:
     def __init__(self):
-        self.sheets_data_file = "google_sheets_data.json"
         self.credentials_manager = GoogleCredentialsManager()
-        self.sheets_data = self._load_sheets_data()
+        # Initialize database managers for user-specific credentials
+        try:
+            self.db_manager = DatabaseManager()
+            self.db_integration_manager = DatabaseIntegrationManager(self.db_manager)
+        except Exception as e:
+            print(f"Error initializing database managers in GoogleSheetsManager: {e}")
+            self.db_manager = None
+            self.db_integration_manager = None
     
-    def _get_credentials(self) -> Optional[Dict]:
-        """Get credentials from session or secure storage"""
-        # First try to get from Flask session
+    def _get_credentials(self, user_id: Optional[str] = None) -> Optional[Dict]:
+        """Get credentials from session, database, or secure storage"""
+        # First try to get from Flask session (for immediate use after OAuth)
         try:
             if "credentials" in session:
                 return session["credentials"]
@@ -25,30 +33,22 @@ class GoogleSheetsManager:
             # We're outside of Flask application context (e.g., in scheduler)
             pass
         
+        # Try to get from database if user_id is provided
+        if user_id and self.db_integration_manager:
+            try:
+                integrations = self.db_integration_manager.get_user_integrations(user_id)
+                for integration in integrations:
+                    if integration['integration_type'] == 'google_sheets' and integration['is_active']:
+                        return integration['config']
+            except Exception as e:
+                print(f"Error getting credentials from database: {e}")
+        
         # Fall back to secure storage
         return self.credentials_manager.get_user_credentials()
     
-    def _load_sheets_data(self) -> Dict:
-        """Load Google Sheets data from JSON file"""
-        if os.path.exists(self.sheets_data_file):
-            try:
-                with open(self.sheets_data_file, 'r', encoding='utf-8') as f:
-                    return json.load(f)
-            except (json.JSONDecodeError, FileNotFoundError):
-                return {}
-        return {}
-    
-    def _save_sheets_data(self):
-        """Save Google Sheets data to JSON file"""
-        try:
-            with open(self.sheets_data_file, 'w', encoding='utf-8') as f:
-                json.dump(self.sheets_data, f, indent=2, ensure_ascii=False)
-        except Exception as e:
-            print(f"Error saving sheets data: {e}")
-    
-    def get_sheets_service(self):
+    def get_sheets_service(self, user_id: Optional[str] = None):
         """Get authenticated Google Sheets service"""
-        creds_data = self._get_credentials()
+        creds_data = self._get_credentials(user_id)
         if not creds_data:
             print("No credentials available")
             return None
@@ -68,9 +68,9 @@ class GoogleSheetsManager:
             print(f"Error creating sheets service: {e}")
             return None
     
-    def get_drive_service(self):
+    def get_drive_service(self, user_id: Optional[str] = None):
         """Get authenticated Google Drive service"""
-        creds_data = self._get_credentials()
+        creds_data = self._get_credentials(user_id)
         if not creds_data:
             print("No credentials available")
             return None
@@ -120,6 +120,21 @@ class GoogleSheetsManager:
     def create_campaign_spreadsheet(self, campaign_name: str) -> Optional[Dict]:
         """Create a new spreadsheet for a campaign"""
         sheets_service = self.get_sheets_service()
+        if not sheets_service:
+            return None
+
+        return self._create_spreadsheet_internal(sheets_service, campaign_name)
+    
+    def create_campaign_spreadsheet_for_user(self, user_id: str, campaign_name: str) -> Optional[Dict]:
+        """Create a new spreadsheet for a campaign for a specific user"""
+        sheets_service = self.get_sheets_service(user_id)
+        if not sheets_service:
+            return None
+
+        return self._create_spreadsheet_internal(sheets_service, campaign_name)
+    
+    def _create_spreadsheet_internal(self, sheets_service, campaign_name: str) -> Optional[Dict]:
+        """Create a new spreadsheet for a campaign"""
         if not sheets_service:
             return None
         
@@ -225,8 +240,8 @@ class GoogleSheetsManager:
                 'articles_count': 0
             }
             
-            self.sheets_data[spreadsheet_id] = sheet_info
-            self._save_sheets_data()
+            # Note: We no longer store sheet info in JSON file, 
+            # it's stored in database as part of campaign data
             
             return sheet_info
             
@@ -426,12 +441,7 @@ class GoogleSheetsManager:
                     body=format_body
                 ).execute()
             
-            # Update article count
-            if spreadsheet_id in self.sheets_data:
-                self.sheets_data[spreadsheet_id]['articles_count'] += len(filtered_articles)
-                self.sheets_data[spreadsheet_id]['last_updated'] = datetime.now().isoformat()
-                self._save_sheets_data()
-            
+            # Note: Article count is now tracked in database campaigns table
             print(f"Successfully saved {len(filtered_articles)} recent articles to spreadsheet for '{campaign_name}'")
             return True
             
@@ -441,17 +451,15 @@ class GoogleSheetsManager:
     
     def get_campaign_spreadsheets(self, campaign_name: Optional[str] = None) -> List[Dict]:
         """Get spreadsheets for a specific campaign or all campaign spreadsheets"""
-        if campaign_name:
-            return [
-                sheet for sheet in self.sheets_data.values() 
-                if sheet.get('campaign_name') == campaign_name
-            ]
-        else:
-            return list(self.sheets_data.values())
+        # Note: This functionality is now handled by the database campaigns table
+        # Return empty list since spreadsheet info should be accessed via campaigns
+        return []
     
     def get_spreadsheet_info(self, spreadsheet_id: str) -> Optional[Dict]:
         """Get information about a specific spreadsheet"""
-        return self.sheets_data.get(spreadsheet_id)
+        # Note: This functionality is now handled by the database campaigns table
+        # Return None since spreadsheet info should be accessed via campaigns
+        return None
     
     def get_spreadsheet_article_count(self, spreadsheet_id: str) -> int:
         """Get the actual number of articles (rows) in a spreadsheet"""
@@ -531,11 +539,7 @@ class GoogleSheetsManager:
         try:
             drive_service.files().delete(fileId=spreadsheet_id).execute()
             
-            # Remove from local data
-            if spreadsheet_id in self.sheets_data:
-                del self.sheets_data[spreadsheet_id]
-                self._save_sheets_data()
-            
+            # Note: Local data tracking is now handled by database campaigns table
             return True
             
         except HttpError as e:

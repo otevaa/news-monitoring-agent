@@ -5,7 +5,6 @@ from agent.google_oauth import start_auth, finish_auth, get_sheets_service, get_
 from agent.async_campaign_manager import AsyncCampaignManager
 from agent.google_sheets_manager import GoogleSheetsManager
 from agent.campaign_manager import CampaignManager
-from agent.integrations import IntegrationManager
 from agent.scheduler import campaign_scheduler
 from agent.user_profile_manager import UserProfileManager
 from database.models import DatabaseManager, UserManager
@@ -41,8 +40,10 @@ except Exception as e:
     sys.exit(1)
 
 try:
-    integration_manager = IntegrationManager()
-    print("✅ Integration Manager initialized")
+    # Use database-based integration manager
+    db_manager = DatabaseManager()
+    integration_manager = DatabaseIntegrationManager(db_manager)
+    print("✅ Database Integration Manager initialized")
 except Exception as e:
     print(f"❌ Integration Manager initialization failed: {e}")
     # Create a fallback class with safe methods
@@ -70,6 +71,7 @@ except Exception as e:
         def get_drive_service(self): return None
         def list_user_spreadsheets(self): return []
         def create_campaign_spreadsheet(self, name): return None
+        def create_campaign_spreadsheet_for_user(self, user_id, name): return None
         def save_articles_to_spreadsheet(self, id, articles, campaign_name="", keywords=""): return False
         def get_campaign_spreadsheets(self, campaign_name=None): return []
         def delete_spreadsheet(self, id): return False
@@ -185,7 +187,7 @@ def signin():
         
         success, message = auth_manager.login_user(email, password, request)
         if success:
-            flash(message, 'success')
+            # Don't flash success messages for login
             return redirect(url_for('dashboard'))
         else:
             flash(message, 'error')
@@ -195,6 +197,9 @@ def signin():
 @app.route('/signup', methods=['GET', 'POST']) 
 def signup():
     """Sign up page"""
+    # Check if there's a pending Google registration
+    pending_google = session.get('pending_google_registration')
+    
     if request.method == 'POST':
         name = request.form.get('name')
         email = request.form.get('email')
@@ -202,37 +207,60 @@ def signup():
         confirm_password = request.form.get('confirm_password')
         terms = request.form.get('terms')
         
+        # If this is a Google-initiated signup, pre-fill from session data
+        if pending_google and not name:
+            name = pending_google.get('name')
+        if pending_google and not email:
+            email = pending_google.get('email')
+        
         if not all([name, email, password, confirm_password]):
             flash('Tous les champs sont requis', 'error')
-            return render_template('auth.html')
+            return render_template('auth.html', pending_google=pending_google)
         
         if password != confirm_password:
             flash('Les mots de passe ne correspondent pas', 'error')
-            return render_template('auth.html')
+            return render_template('auth.html', pending_google=pending_google)
         
         if not terms:
             flash('Vous devez accepter les conditions d\'utilisation', 'error')
-            return render_template('auth.html')
+            return render_template('auth.html', pending_google=pending_google)
         
         # Type checks to satisfy linter
         if not isinstance(name, str) or not isinstance(email, str) or not isinstance(password, str):
             flash('Données invalides', 'error')
-            return render_template('auth.html')
+            return render_template('auth.html', pending_google=pending_google)
         
         user_id = auth_manager.register_user(email, password, name)
         if user_id:
+            # If this was a Google-initiated signup, connect Google Sheets automatically
+            if pending_google and pending_google.get('credentials'):
+                try:
+                    db_integration_manager = DatabaseIntegrationManager(db_manager)
+                    db_integration_manager.update_integration(
+                        user_id, 
+                        'google_sheets', 
+                        pending_google['credentials'],
+                        is_active=True
+                    )
+                    print(f"Auto-connected Google Sheets for new user {user_id}")
+                except Exception as e:
+                    print(f"Error auto-connecting Google Sheets for new user: {e}")
+                
+                # Clear pending registration
+                session.pop('pending_google_registration', None)
+                
             flash('Compte créé avec succès ! Vous pouvez maintenant vous connecter.', 'success')
             return redirect(url_for('signin'))
         else:
             flash('Erreur lors de la création du compte. Cet email est peut-être déjà utilisé.', 'error')
     
-    return render_template('auth.html')
+    return render_template('auth.html', pending_google=pending_google)
 
 @app.route('/logout')
 def logout():
     """Logout user"""
     auth_manager.logout_user()
-    flash("Déconnexion réussie", 'success')
+    # Don't flash logout message
     return redirect(url_for('home'))
 
 # Public SaaS pages
@@ -475,9 +503,11 @@ def save_campaign(campaign_id=None):
             new_campaign_id = campaign_manager.create_campaign(user_id, data)
             
             # Handle Google Sheets integration
-            if "credentials" in session and 'google_sheets' in data.get('integrations', []):
+            if 'google_sheets' in data.get('integrations', []):
                 try:
-                    if sheets_manager.is_google_sheets_connected():
+                    # Check if user has Google Sheets connected in database
+                    db_integration_manager = DatabaseIntegrationManager(db_manager)
+                    if db_integration_manager.is_google_sheets_connected(user_id):
                         spreadsheet_choice = request.form.get('spreadsheet_choice', 'new')
                         spreadsheet_id = request.form.get('spreadsheet_id')
                         
@@ -487,9 +517,11 @@ def save_campaign(campaign_id=None):
                                 campaign_manager.update_campaign_spreadsheet(new_campaign_id, user_id, spreadsheet_id, f"https://docs.google.com/spreadsheets/d/{spreadsheet_id}")
                         else:
                             # Create new spreadsheet
-                            sheet_info = sheets_manager.create_campaign_spreadsheet(data['name'])
+                            sheet_info = sheets_manager.create_campaign_spreadsheet_for_user(user_id, data['name'])
                             if sheet_info and new_campaign_id:
                                 campaign_manager.update_campaign_spreadsheet(new_campaign_id, user_id, sheet_info['id'], sheet_info['url'])
+                    else:
+                        print(f"User {user_id} does not have Google Sheets connected")
                 except Exception as e:
                     print(f"Error setting up Google Sheets for campaign: {e}")
                     flash("Campagne créée, mais erreur lors de la configuration de Google Sheets.", 'warning')
@@ -574,28 +606,42 @@ def delete_campaign(campaign_id):
 @app.route("/integrations")
 @login_required
 def integrations():
+    current_user = auth_manager.get_current_user()
+    if not current_user:
+        return redirect(url_for('signin'))
+    
+    user_id = current_user['id']
+    db_integration_manager = DatabaseIntegrationManager(db_manager)
+    
     integrations_status = {
-        'google_sheets': integration_manager.get_google_sheets_status(),
-        'airtable': integration_manager.get_airtable_status()
+        'google_sheets': db_integration_manager.is_google_sheets_connected(user_id),
+        'airtable': False  # TODO: Implement airtable check when available
     }
-    stats = integration_manager.get_usage_stats()
+    
+    # Basic stats
+    stats = {
+        'total_articles_sent': 0,
+        'articles_today': 0,
+        'successful_syncs': 0,
+        'last_sync': 'Never'
+    }
+    
     return render_template("integrations.html", integrations=integrations_status, stats=stats)
 
 @app.route("/integrations/airtable/configure", methods=["POST"])
 def configure_airtable():
-    api_key = request.form.get('api_key')
-    base_id = request.form.get('base_id')
-    table_name = request.form.get('table_name')
-    
-    if not api_key or not base_id or not table_name:
-        return jsonify({'success': False, 'error': 'Tous les champs sont requis'})
-    
-    success = integration_manager.configure_airtable(api_key, base_id, table_name)
-    return jsonify({'success': success})
+    # TODO: Implement when airtable integration is ready
+    return jsonify({'success': False, 'error': 'Airtable integration not yet implemented'})
 
 @app.route("/integrations/<integration>/disconnect", methods=["POST"])
 def disconnect_integration(integration):
-    success = integration_manager.disconnect_integration(integration)
+    current_user = auth_manager.get_current_user()
+    if not current_user:
+        return jsonify({'success': False, 'error': 'Authentication required'}), 401
+    
+    user_id = current_user['id']
+    db_integration_manager = DatabaseIntegrationManager(db_manager)
+    success = db_integration_manager.disconnect_integration(user_id, integration)
     return jsonify({'success': success})
 
 # Profile Routes
@@ -710,7 +756,7 @@ def reauth():
     # Clear existing credentials
     if "credentials" in session:
         del session["credentials"]
-    integration_manager.update_google_sheets_status(False)
+    # Note: We don't need to update integration status here as it will be set during OAuth callback
     return start_auth()
 
 @app.route("/oauth2callback")
@@ -718,23 +764,100 @@ def oauth2callback():
     try:
         finish_auth()
         
-        # Save credentials to file for background scheduler access
-        if "credentials" in session:
-            try:
-                with open("user_credentials.json", "w") as f:
-                    json.dump(session["credentials"], f, indent=2)
-                print("Credentials saved to file for scheduler access")
-            except Exception as e:
-                print(f"Error saving credentials to file: {e}")
+        # Get Google user info from session
+        google_user_info = session.get("google_user_info")
         
-        # Update integration status
-        integration_manager.update_google_sheets_status(True)
-        flash("Connexion Google Sheets réussie !", 'success')
-        return redirect(url_for("home"))
+        # Check if user is already authenticated
+        if auth_manager.is_authenticated():
+            # User is logged in - store Google credentials for their account
+            current_user = auth_manager.get_current_user()
+            if not current_user:
+                flash("Erreur d'authentification. Veuillez vous reconnecter.", 'error')
+                return redirect(url_for("signin"))
+            
+            user_id = current_user['id']
+            
+            # Store Google credentials in database
+            if "credentials" in session:
+                try:
+                    db_integration_manager = DatabaseIntegrationManager(db_manager)
+                    success = db_integration_manager.update_integration(
+                        user_id, 
+                        'google_sheets', 
+                        session["credentials"],
+                        is_active=True
+                    )
+                    if success:
+                        print(f"Google credentials stored securely for user {user_id}")
+                        flash("Google Sheets connecté avec succès !", 'success')
+                        return redirect(url_for("integrations"))
+                    else:
+                        raise Exception("Failed to store credentials")
+                except Exception as e:
+                    print(f"Error storing credentials in database: {e}")
+                    flash("Erreur lors de la sauvegarde des identifiants.", 'error')
+                    return redirect(url_for("integrations"))
+        
+        else:
+            # User is not logged in - try to find/create account based on Google email
+            if google_user_info and google_user_info.get('email'):
+                google_email = google_user_info['email']
+                google_name = google_user_info.get('name', google_email.split('@')[0])
+                
+                # Check if user exists with this email
+                user = user_manager.get_user_by_email(google_email)
+                
+                if user:
+                    # User exists - log them in automatically
+                    session['user_id'] = user['id']
+                    session['username'] = user['email']
+                    session['client_fingerprint'] = auth_manager.security.get_client_fingerprint()
+                    
+                    # Create session in database
+                    session_token = auth_manager.session_manager.create_session(
+                        user['id'], 
+                        request.environ.get('REMOTE_ADDR', 'unknown'),
+                        request.headers.get('User-Agent', 'Unknown')
+                    )
+                    session['session_token'] = session_token
+                    
+                    # Update last login
+                    user_manager.update_last_login(user['id'])
+                    
+                    # Store Google credentials
+                    if "credentials" in session:
+                        db_integration_manager = DatabaseIntegrationManager(db_manager)
+                        db_integration_manager.update_integration(
+                            user['id'], 
+                            'google_sheets', 
+                            session["credentials"],
+                            is_active=True
+                        )
+                    
+                    flash(f"Connexion automatique réussie avec {google_email} !", 'success')
+                    return redirect(url_for("dashboard"))
+                else:
+                    # Store Google info in session for registration
+                    session['pending_google_registration'] = {
+                        'email': google_email,
+                        'name': google_name,
+                        'credentials': session.get("credentials")
+                    }
+                    flash(f"Compte Google détecté ({google_email}). Veuillez créer votre compte pour continuer.", 'info')
+                    return redirect(url_for("signup"))
+            else:
+                # No Google user info - redirect to signin
+                    flash("Veuillez vous connecter à votre compte pour connecter Google Sheets.", 'info')
+                    return redirect(url_for("signin"))
+        
+        # Fallback - should never reach here but ensure we return a response
+        flash("Erreur inattendue lors de la connexion.", 'error')
+        return redirect(url_for("signin"))
+        
     except Exception as e:
         print(f"OAuth callback error: {e}")
         flash("Erreur lors de la connexion Google Sheets. Veuillez réessayer.", 'error')
-        return redirect(url_for("home"))
+        return redirect(url_for("signin"))
 
 @app.route("/debug/session")
 def debug_session():
@@ -757,16 +880,27 @@ def debug_session():
 @app.route("/api/spreadsheets/list")
 def list_spreadsheets():
     """List user's spreadsheets"""
-    if "credentials" not in session:
-        return jsonify({'error': 'Not connected to Google Sheets'}), 401
+    # Check authentication first
+    if not auth_manager.is_authenticated():
+        return jsonify({'error': 'Authentication required'}), 401
     
-    error_response = check_google_sheets_access()
+    current_user = auth_manager.get_current_user()
+    if not current_user:
+        return jsonify({'error': 'User not found'}), 401
+    
+    user_id = current_user['id']
+    
+    # Check Google Sheets connection
+    error_response = check_google_sheets_access(user_id)
     if error_response:
         return error_response
     
     try:
         # Debug: Check what credentials we have
-        creds_data = session["credentials"]
+        creds_data = session.get("credentials")
+        if not creds_data:
+            return jsonify({'error': 'No credentials in session'}), 401
+            
         print(f"Credentials keys: {list(creds_data.keys())}")
         
         # Check for required fields
@@ -936,17 +1070,48 @@ def save_campaign_results(campaign_id):
 @login_required
 def file_management():
     """File and folder management page"""
-    if not sheets_manager.is_google_sheets_connected():
+    # Get current user
+    current_user = auth_manager.get_current_user()
+    if not current_user:
+        return redirect(url_for('signin'))
+    
+    user_id = current_user['id']
+    
+    # Check if user has Google Sheets connected
+    db_integration_manager = DatabaseIntegrationManager(db_manager)
+    if not db_integration_manager.is_google_sheets_connected(user_id):
         return render_template("files.html", 
                              spreadsheets=[], 
                              error="Veuillez vous connecter à Google Sheets pour voir vos fichiers.")
     
     try:
-        # Get all spreadsheets
-        all_spreadsheets = sheets_manager.list_user_spreadsheets()
+        # Get all spreadsheets for this user
+        all_spreadsheets = []
         
-        # Get campaigns with their associated spreadsheets
-        campaigns = campaign_manager.get_user_campaigns('default')
+        # Try to get user's spreadsheets using their credentials
+        try:
+            # Get user credentials from session first, then database
+            if "credentials" in session:
+                all_spreadsheets = sheets_manager.list_user_spreadsheets()
+            else:
+                # Use user-specific credentials from database
+                integrations = db_integration_manager.get_user_integrations(user_id)
+                google_integration = None
+                for integration in integrations:
+                    if integration['integration_type'] == 'google_sheets' and integration['is_active']:
+                        google_integration = integration
+                        break
+                
+                if google_integration:
+                    # Temporarily set credentials in session for this request
+                    session["credentials"] = google_integration['config']
+                    all_spreadsheets = sheets_manager.list_user_spreadsheets()
+        except Exception as e:
+            print(f"Error getting user spreadsheets: {e}")
+            all_spreadsheets = []
+        
+        # Get campaigns with their associated spreadsheets for this user
+        campaigns = campaign_manager.get_user_campaigns(user_id)
         campaign_spreadsheets = {c.get('spreadsheet_id'): c['name'] for c in campaigns if c.get('spreadsheet_id')}
         
         # Mark which spreadsheets are associated with campaigns

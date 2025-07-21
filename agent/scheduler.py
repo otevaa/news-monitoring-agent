@@ -1,10 +1,11 @@
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
-from datetime import datetime
+from datetime import datetime, timedelta
+from typing import List, Dict
 import logging
 import traceback
-from agent.campaign_manager import CampaignManager
-from agent.integrations import IntegrationManager
+from database.models import DatabaseManager
+from database.managers import DatabaseCampaignManager, DatabaseIntegrationManager
 from agent.google_sheets_manager import GoogleSheetsManager
 from agent.fetch_multi_source import fetch_articles_rss
 from agent.fetch_multi_source import fetch_articles_multi_source
@@ -12,8 +13,9 @@ from agent.fetch_multi_source import fetch_articles_multi_source
 class CampaignScheduler:
     def __init__(self):
         self.scheduler = BackgroundScheduler()
-        self.campaign_manager = CampaignManager()
-        self.integration_manager = IntegrationManager()
+        self.db_manager = DatabaseManager()
+        self.campaign_manager = DatabaseCampaignManager(self.db_manager)
+        self.integration_manager = DatabaseIntegrationManager(self.db_manager)
         self.sheets_manager = GoogleSheetsManager()
         self.logger = logging.getLogger(__name__)
         
@@ -79,10 +81,13 @@ class CampaignScheduler:
                 for integration in integrations:
                     if integration == 'google_sheets':
                         # Google Sheets integration
-                        if self.sheets_manager.is_google_sheets_connected():
+                        user_id = campaign.get('user_id')
+                        if user_id and self._is_google_sheets_connected_for_user(user_id):
                             spreadsheet_id = campaign.get('spreadsheet_id')
                             if spreadsheet_id:
-                                success = self.sheets_manager.save_articles_to_spreadsheet(
+                                # Use the existing sheets manager with user_id context
+                                success = self._save_articles_for_user(
+                                    user_id,
                                     spreadsheet_id,
                                     articles,
                                     campaign['name'],
@@ -96,23 +101,21 @@ class CampaignScheduler:
                             else:
                                 self.logger.warning(f"⚠️ Campaign has Google Sheets integration but no spreadsheet_id")
                         else:
-                            self.logger.warning("⚠️ Google Sheets not connected - skipping integration")
+                            self.logger.warning(f"⚠️ Google Sheets not connected for user {user_id} - skipping integration")
                     
                     elif integration == 'airtable':
-                        # Airtable integration
-                        success = self.integration_manager.send_to_airtable(articles, campaign['name'])
-                        if success:
-                            success_count += 1
-                            self.logger.info(f"✅ Sent articles to Airtable")
-                        else:
-                            self.logger.error(f"❌ Failed to send articles to Airtable")
+                        # Airtable integration - placeholder for now
+                        self.logger.info("Airtable integration not implemented in database version")
+                        pass
                 
                 # Update campaign statistics
-                self.campaign_manager.update_campaign_stats(
-                    campaign['id'], 
-                    len(articles), 
-                    success_count
-                )
+                user_id = campaign.get('user_id')
+                if user_id:
+                    self.campaign_manager.update_campaign_stats(
+                        campaign['id'], 
+                        user_id,
+                        len(articles)
+                    )
                 
                 self.logger.info(f"✅ Campaign '{campaign['name']}' completed: {len(articles)} articles, {success_count}/{len(integrations)} integrations successful")
                 
@@ -123,21 +126,104 @@ class CampaignScheduler:
             self.logger.error(f"❌ Error running campaign '{campaign['name']}': {e}")
             traceback.print_exc()
 
+    def _is_google_sheets_connected_for_user(self, user_id: str) -> bool:
+        """Check if Google Sheets is connected for a specific user"""
+        try:
+            # Use the database integration manager method
+            return self.integration_manager.is_google_sheets_connected(user_id)
+        except Exception as e:
+            self.logger.error(f"Error checking Google Sheets connection for user {user_id}: {e}")
+            return False
+
+    def _save_articles_for_user(self, user_id: str, spreadsheet_id: str, articles: List[Dict], 
+                               campaign_name: str, keywords: str) -> bool:
+        """Save articles to Google Sheets for a specific user"""
+        try:
+            # Create a temporary GoogleSheetsManager instance
+            # We'll use the service methods directly with user credentials
+            sheets_service = self.sheets_manager.get_sheets_service(user_id)
+            if not sheets_service:
+                return False
+            
+            # Filter articles to only include last 2 days
+            today = datetime.now().date()
+            three_days_ago = today - timedelta(days=2)
+            
+            filtered_articles = []
+            for article in articles:
+                article_date_str = article.get('date', '')
+                if article_date_str:
+                    try:
+                        # Parse article date (assuming format like "2025-07-17T10:30:00")
+                        article_date = datetime.fromisoformat(article_date_str.replace('Z', '')).date()
+                        if article_date >= three_days_ago:
+                            filtered_articles.append(article)
+                    except (ValueError, TypeError):
+                        # If date parsing fails, include the article
+                        filtered_articles.append(article)
+                else:
+                    # No date available, include the article
+                    filtered_articles.append(article)
+            
+            if not filtered_articles:
+                self.logger.info(f"No recent articles to save for campaign {campaign_name}")
+                return True
+            
+            # Prepare data for insertion
+            values = []
+            for article in filtered_articles:
+                row = [
+                    article.get('date', ''),
+                    article.get('source', ''),
+                    article.get('titre', ''),  # Changed from 'title' to 'titre'
+                    article.get('url', ''),    # Changed from 'link' to 'url'
+                    campaign_name
+                ]
+                values.append(row)
+            
+            # Get the next available row
+            result = sheets_service.spreadsheets().values().get(
+                spreadsheetId=spreadsheet_id, range='A:A'
+            ).execute()
+            
+            existing_rows = len(result.get('values', []))
+            next_row = existing_rows + 1
+            range_name = f'A{next_row}:E{next_row + len(values) - 1}'
+            
+            # Insert the data
+            sheets_service.spreadsheets().values().update(
+                spreadsheetId=spreadsheet_id,
+                range=range_name,
+                valueInputOption='RAW',
+                body={'values': values}
+            ).execute()
+            
+            self.logger.info(f"Successfully saved {len(values)} articles to spreadsheet")
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"Error saving articles for user {user_id}: {e}")
+            return False
+
 # Global scheduler instance
 campaign_scheduler = CampaignScheduler()
 
 # External function to run a campaign
-def run_campaign(campaign_id: str):
+def run_campaign(campaign_id: str, user_id: str = 'default'):
     """Run a specific campaign by ID"""
     try:
-        campaign_manager = CampaignManager()
-        campaign = campaign_manager.get_campaign(campaign_id)
+        from database.models import DatabaseManager
+        from database.managers import DatabaseCampaignManager
+        
+        db_manager = DatabaseManager()
+        campaign_manager = DatabaseCampaignManager(db_manager)
+        campaign = campaign_manager.get_campaign(campaign_id, user_id)
         
         if campaign:
             campaign_scheduler.run_campaign(campaign)
             return True
         else:
-            print(f"Campaign {campaign_id} not found")
+            print(f"Campaign {campaign_id} not found for user {user_id}")
             return False
             
     except Exception as e:

@@ -291,6 +291,25 @@ class UserManager:
             print(f"Error getting user: {e}")
             return None
     
+    def get_user_by_email(self, email: str) -> Optional[Dict]:
+        """Get user by email"""
+        try:
+            conn = self.db.get_connection()
+            cursor = conn.cursor()
+            
+            cursor.execute('''
+                SELECT id, email, name, is_active, created_at, last_login, email_verified
+                FROM users WHERE email = ? AND is_active = 1
+            ''', (email,))
+            
+            user = cursor.fetchone()
+            conn.close()
+            
+            return dict(user) if user else None
+        except Exception as e:
+            print(f"Error getting user by email: {e}")
+            return None
+    
     def update_user(self, user_id: str, updates: Dict) -> bool:
         """Update user information"""
         try:

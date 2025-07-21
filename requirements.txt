@@ -16,3 +16,5 @@ anthropic
 tweepy
 cryptography
 gunicorn
+bcrypt
+PyJWT

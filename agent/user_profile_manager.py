@@ -35,7 +35,7 @@ class UserProfileManager:
     def get_default_profile(self) -> Dict:
         """Get default profile settings"""
         return {
-            'ai_model': 'openrouter-auto',
+            'ai_model': 'deepseek/deepseek-r1',
             'ai_filtering_enabled': True,
             'keyword_expansion_enabled': True,
             'priority_alerts_enabled': True,

@@ -292,7 +292,7 @@ def fetch_articles_multi_source(
                 # Get user profile and create AI enhancer with user-preferred model
                 profile_manager = UserProfileManager()
                 user_profile = profile_manager.get_user_profile()
-                ai_model = user_profile.get('ai_model', 'openrouter-auto')
+                ai_model = user_profile.get('ai_model', 'deepseek/deepseek-r1')
                 ai_enhancer = create_keyword_expander(ai_model)
             french_words, english_words = ai_enhancer.expand_keywords(keywords)
             expanded_keywords = french_words + english_words
@@ -317,7 +317,7 @@ def fetch_articles_multi_source(
                 # Get user profile and create AI enhancer with user-preferred model
                 profile_manager = UserProfileManager()
                 user_profile = profile_manager.get_user_profile()
-                ai_model = user_profile.get('ai_model', 'openrouter-auto')
+                ai_model = user_profile.get('ai_model', 'deepseek/deepseek-r1')
                 ai_enhancer = create_keyword_expander(ai_model)
             french_words, english_words = ai_enhancer.expand_keywords(keywords)
             expanded_keywords = french_words + english_words

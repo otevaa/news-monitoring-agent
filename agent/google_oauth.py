@@ -1,12 +1,10 @@
 import os
 import json
-import tempfile
 from flask import session, redirect, request, url_for
 from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
 from google.oauth2.credentials import Credentials
 from .secure_credentials import GoogleCredentialsManager
-from .integrations import IntegrationManager
 
 SCOPES = [
     "openid",
@@ -22,24 +20,28 @@ os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"  # autorise HTTP (test uniquemen
 credentials_manager = GoogleCredentialsManager()
 
 def get_auth_flow():
-    """Get OAuth flow with secure credentials"""
+    """Get OAuth flow with environment variables"""
     try:
-        # Get client configuration securely
-        client_config = credentials_manager.get_client_config()
+        # Get client configuration from environment variables
+        client_config = {
+            "web": {
+                "client_id": os.getenv("GOOGLE_CLIENT_ID"),
+                "client_secret": os.getenv("GOOGLE_CLIENT_SECRET"),
+                "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                "token_uri": "https://oauth2.googleapis.com/token",
+                "redirect_uris": [os.getenv("GOOGLE_REDIRECT_URI")]
+            }
+        }
         
-        # Create a temporary client secrets file for google-auth-oauthlib
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as temp_file:
-            json.dump(client_config, temp_file)
-            temp_file_path = temp_file.name
+        # Validate environment variables
+        if not client_config["web"]["client_id"] or not client_config["web"]["client_secret"]:
+            raise ValueError("Missing GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET in environment")
         
-        flow = Flow.from_client_secrets_file(
-            temp_file_path,
+        flow = Flow.from_client_config(
+            client_config,
             scopes=SCOPES,
-            redirect_uri=url_for("oauth2callback", _external=True)
+            redirect_uri=os.getenv("GOOGLE_REDIRECT_URI")
         )
-        
-        # Clean up temporary file
-        os.unlink(temp_file_path)
         
         return flow
     except Exception as e:
@@ -58,7 +60,7 @@ def start_auth():
         auth_url, state = flow.authorization_url(
             access_type="offline",
             include_granted_scopes="true",
-            prompt="consent"  # Force consent to ensure refresh_token is provided
+            prompt="select_account consent"  # Force account selection and consent
         )
         session["state"] = state
         return redirect(auth_url)
@@ -73,10 +75,6 @@ def finish_auth():
         flow.fetch_token(authorization_response=request.url)
         credentials = flow.credentials
         
-        # Get client configuration
-        client_config = credentials_manager.get_client_config()
-        client_info = client_config['web']
-        
         # Debug: Check what we got from OAuth
         print(f"OAuth token: {credentials.token is not None}")
         print(f"OAuth refresh_token: {credentials.refresh_token is not None}")
@@ -86,13 +84,31 @@ def finish_auth():
             print("WARNING: No refresh token received. User may need to revoke access and re-authorize.")
             raise Exception("No refresh token received. Please revoke access in Google account settings and try again.")
         
-        # Prepare credentials data
+        # Get Google user info for account linking
+        temp_creds = Credentials(
+            token=credentials.token,
+            refresh_token=credentials.refresh_token,
+            token_uri="https://oauth2.googleapis.com/token",
+            client_id=os.getenv("GOOGLE_CLIENT_ID"),
+            client_secret=os.getenv("GOOGLE_CLIENT_SECRET"),
+            scopes=credentials.scopes
+        )
+        
+        try:
+            oauth_service = build("oauth2", "v2", credentials=temp_creds)
+            google_user_info = oauth_service.userinfo().get().execute()
+            print(f"Google user: {google_user_info.get('email')}")
+        except Exception as e:
+            print(f"Could not get Google user info: {e}")
+            google_user_info = None
+        
+        # Prepare credentials data using environment variables
         credentials_data = {
             "token": credentials.token,
             "refresh_token": credentials.refresh_token,
-            "token_uri": client_info['token_uri'],
-            "client_id": client_info['client_id'],
-            "client_secret": client_info['client_secret'],
+            "token_uri": "https://oauth2.googleapis.com/token",
+            "client_id": os.getenv("GOOGLE_CLIENT_ID"),
+            "client_secret": os.getenv("GOOGLE_CLIENT_SECRET"),
             "scopes": credentials.scopes
         }
         
@@ -101,14 +117,18 @@ def finish_auth():
         
         # Also store in session for immediate use
         session["credentials"] = credentials_data
+        session["google_user_info"] = google_user_info
         
         # Debug: Verify what we stored
         print(f"Stored credentials keys: {list(credentials_data.keys())}")
         print(f"All required fields present: {all(field in credentials_data for field in ['token', 'refresh_token', 'token_uri', 'client_id', 'client_secret'])}")
         
         # Update integration manager with Google Sheets connection status
-        integration_manager = IntegrationManager()
-        integration_manager.update_google_sheets_status(True)
+        from database.models import DatabaseManager
+        from database.managers import DatabaseIntegrationManager
+        
+        # We can't update user-specific integration status here without user context
+        # This will be handled in the OAuth callback in app.py
         
         return True
     except Exception as e:

@@ -17,11 +17,11 @@
                     NewsMonitor Pro
                 </a>
                 
-                <nav class="header-nav">
-                    <a href="/" class="nav-link active">Accueil</a>
-                    <a href="/about" class="nav-link">À propos</a>
-                    <a href="/team" class="nav-link">Équipe</a>
-                    <a href="/pricing" class="nav-link">Tarifs</a>
+                <nav class="public-nav">
+                    <a href="/" class="public-nav-link active">Accueil</a>
+                    <a href="/about" class="public-nav-link">À propos</a>
+                    <a href="/team" class="public-nav-link">Équipe</a>
+                    <a href="/pricing" class="public-nav-link">Tarifs</a>
                 </nav>
                 
                 <div class="header-menu">
@@ -45,11 +45,11 @@
                 </p>
                 
                 <div class="hero-buttons">
-                    <a href="{{ url_for('signup') }}" class="btn-hero-primary">
+                    <a href="{{ url_for('signin') }}" class="btn-hero-primary">
                         <i data-feather="rocket"></i>
                         Commencer maintenant
                     </a>
-                    <a href="#features" class="btn-hero-secondary">
+                    <a href="#search" class="btn-hero-secondary">
                         <i data-feather="play-circle"></i>
                         Voir la démo
                     </a>
@@ -59,7 +59,7 @@
     </section>
 
     <!-- Search Section -->
-    <section class="search-section">
+    <section id="search" class="search-section">
         <div class="container">
             <div class="search-container">
                 <div class="search-header">

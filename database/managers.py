@@ -371,6 +371,72 @@ class DatabaseCampaignManager:
             print(f"Error updating campaign spreadsheet: {e}")
             return False
     
+    def get_campaigns_for_execution(self) -> List[Dict]:
+        """Get campaigns that need to be executed based on their frequency across all users"""
+        from datetime import datetime, timedelta
+        
+        try:
+            conn = self.db.get_connection()
+            cursor = conn.cursor()
+            
+            cursor.execute('''
+                SELECT * FROM campaigns 
+                WHERE status = 'active'
+                ORDER BY created_at DESC
+            ''')
+            
+            campaigns_to_run = []
+            now = datetime.now()
+            
+            for row in cursor.fetchall():
+                campaign_dict = dict(row)
+                
+                # Get integrations for this campaign
+                cursor.execute('''
+                    SELECT integration_type FROM campaign_integrations 
+                    WHERE campaign_id = ? AND is_active = 1
+                ''', (campaign_dict['id'],))
+                
+                integrations = [int_row['integration_type'] for int_row in cursor.fetchall()]
+                campaign_dict['integrations'] = integrations
+                
+                # Check if campaign should run based on frequency
+                last_check = campaign_dict.get('last_check')
+                frequency = campaign_dict.get('frequency', 'daily')
+                
+                if not last_check:
+                    # Never run before, add to execution list
+                    campaigns_to_run.append(campaign_dict)
+                    continue
+                
+                # Parse last_check datetime
+                if isinstance(last_check, str):
+                    last_check_dt = datetime.fromisoformat(last_check.replace('Z', '+00:00'))
+                else:
+                    last_check_dt = last_check
+                    
+                time_diff = now - last_check_dt
+                
+                # Check if enough time has passed based on frequency
+                should_run = False
+                if frequency == '15min' and time_diff >= timedelta(minutes=15):
+                    should_run = True
+                elif frequency == 'hourly' and time_diff >= timedelta(hours=1):
+                    should_run = True
+                elif frequency == 'daily' and time_diff >= timedelta(days=1):
+                    should_run = True
+                elif frequency == 'weekly' and time_diff >= timedelta(weeks=1):
+                    should_run = True
+                
+                if should_run:
+                    campaigns_to_run.append(campaign_dict)
+            
+            conn.close()
+            return campaigns_to_run
+        except Exception as e:
+            print(f"Error getting campaigns for execution: {e}")
+            return []
+
     def get_user_stats(self, user_id: str) -> Dict:
         """Get statistics for a user's campaigns"""
         try:
