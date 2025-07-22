@@ -273,6 +273,57 @@ def db_status():
             "timestamp": datetime.now().isoformat()
         }), 500
 
+# Simple user creation test endpoint
+@app.route("/test-user-creation")
+def test_user_creation():
+    """Test endpoint to create a user and immediately verify"""
+    try:
+        import uuid
+        test_email = f"test_{str(uuid.uuid4())[:8]}@test.com"
+        test_password = "test123"
+        test_name = "Test User"
+        
+        print(f"Testing user creation with email: {test_email}")
+        
+        # Create user
+        user_id = auth_manager.register_user(test_email, test_password, test_name)
+        print(f"Register user returned: {user_id}")
+        
+        if user_id:
+            # Immediately check if user exists in database
+            conn = db_manager.get_connection()
+            cursor = conn.cursor()
+            cursor.execute("SELECT id, email, name FROM users WHERE id = ?", (user_id,))
+            user = cursor.fetchone()
+            
+            # Check total user count
+            cursor.execute("SELECT COUNT(*) FROM users")
+            total_users = cursor.fetchone()[0]
+            
+            conn.close()
+            
+            return jsonify({
+                "status": "success",
+                "user_created": user_id,
+                "user_found_in_db": dict(user) if user else None,
+                "total_users_in_db": total_users,
+                "test_email": test_email
+            })
+        else:
+            return jsonify({
+                "status": "failed",
+                "error": "register_user returned None",
+                "test_email": test_email
+            })
+            
+    except Exception as e:
+        import traceback
+        return jsonify({
+            "status": "error", 
+            "error": str(e),
+            "traceback": traceback.format_exc()
+        }), 500
+
 # Home and authentication routes
 @app.route("/")
 def home():
@@ -340,7 +391,10 @@ def signup():
             return render_template('auth.html', pending_google=pending_google)
         
         user_id = auth_manager.register_user(email, password, name)
+        print(f"Signup attempt - Email: {email}, User ID returned: {user_id}")  # Debug log
+        
         if user_id:
+            print(f"User created successfully with ID: {user_id}")  # Debug log
             # If this was a Google-initiated signup, connect Google Sheets automatically
             if pending_google and pending_google.get('credentials'):
                 try:

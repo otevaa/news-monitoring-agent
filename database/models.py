@@ -223,11 +223,14 @@ class UserManager:
             # Check if user already exists
             cursor.execute('SELECT id FROM users WHERE email = ?', (email,))
             if cursor.fetchone():
+                conn.close()
                 return None  # User already exists
             
             user_id = str(uuid.uuid4())
             password_hash = generate_password_hash(password)
             verification_token = secrets.token_urlsafe(32)
+            
+            print(f"Creating user: {email} with ID: {user_id}")  # Debug log
             
             cursor.execute('''
                 INSERT INTO users (id, email, password_hash, name, verification_token)
@@ -241,7 +244,15 @@ class UserManager:
                 VALUES (?, ?)
             ''', (profile_id, user_id))
             
+            # CRITICAL: Ensure transaction is committed
             conn.commit()
+            print(f"User created successfully: {user_id}")  # Debug log
+            
+            # Verify user was actually inserted
+            cursor.execute('SELECT COUNT(*) FROM users WHERE id = ?', (user_id,))
+            count = cursor.fetchone()[0]
+            print(f"User count verification: {count}")  # Debug log
+            
             conn.close()
             
             # Log activity
@@ -250,6 +261,8 @@ class UserManager:
             return user_id
         except Exception as e:
             print(f"Error creating user: {e}")
+            import traceback
+            traceback.print_exc()
             return None
     
     def authenticate_user(self, email: str, password: str) -> Optional[Dict]:
