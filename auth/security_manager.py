@@ -68,20 +68,50 @@ class SecurityManager:
             # Fallback to PBKDF2
             salt = secrets.token_hex(16)
             pwd_hash = hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), salt.encode('utf-8'), 100000)
-            return f"{salt}${pwd_hash.hex()}"
+            return f"pbkdf2${salt}${pwd_hash.hex()}"
     
     def verify_password(self, password: str, hashed: str) -> bool:
         """Verify password against hash"""
         try:
-            if HAS_BCRYPT and not '$' in hashed:
+            print(f"Verifying password - Hash format: {hashed[:20]}...")  # Debug log
+            
+            # Check if it's a bcrypt hash (starts with $2a$, $2b$, $2x$, $2y$)
+            if HAS_BCRYPT and hashed.startswith(('$2a$', '$2b$', '$2x$', '$2y$')):
+                print("Using bcrypt verification")  # Debug log
                 import bcrypt
-                return bcrypt.checkpw(password.encode('utf-8'), hashed.encode('utf-8'))
-            else:
-                # PBKDF2 verification
-                salt, pwd_hash = hashed.split('$')
+                result = bcrypt.checkpw(password.encode('utf-8'), hashed.encode('utf-8'))
+                print(f"Bcrypt verification result: {result}")  # Debug log
+                return result
+            
+            # Check if it's our PBKDF2 format (contains pbkdf2$ prefix or old format with single $)
+            elif 'pbkdf2$' in hashed:
+                print("Using PBKDF2 verification (new format)")  # Debug log
+                # New format: pbkdf2$salt$hash
+                parts = hashed.split('$')
+                if len(parts) == 3 and parts[0] == 'pbkdf2':
+                    salt, pwd_hash = parts[1], parts[2]
+                    computed_hash = hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), salt.encode('utf-8'), 100000)
+                    result = pwd_hash == computed_hash.hex()
+                    print(f"PBKDF2 verification result: {result}")  # Debug log
+                    return result
+            
+            elif '$' in hashed and not hashed.startswith('$'):
+                print("Using PBKDF2 verification (legacy format)")  # Debug log
+                # Legacy format: salt$hash
+                salt, pwd_hash = hashed.split('$', 1)
                 computed_hash = hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), salt.encode('utf-8'), 100000)
-                return pwd_hash == computed_hash.hex()
-        except Exception:
+                result = pwd_hash == computed_hash.hex()
+                print(f"Legacy PBKDF2 verification result: {result}")  # Debug log
+                return result
+            
+            else:
+                print(f"Unknown hash format: {hashed[:50]}")  # Debug log
+                return False
+                
+        except Exception as e:
+            print(f"Password verification error: {e}")  # Debug log
+            import traceback
+            traceback.print_exc()
             return False
     
     def generate_secure_token(self, length: int = 32) -> str:

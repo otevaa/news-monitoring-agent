@@ -365,6 +365,66 @@ def test_login():
             "traceback": traceback.format_exc()
         }), 500
 
+# Debug password hash endpoint
+@app.route("/debug-password-hash")
+def debug_password_hash():
+    """Debug endpoint to inspect password hashes in database"""
+    try:
+        test_email = "baruchdakpovi.dev@gmail.com"
+        
+        # Get user from database
+        conn = db_manager.get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT id, email, password_hash FROM users WHERE email = ?", (test_email,))
+        user = cursor.fetchone()
+        conn.close()
+        
+        if not user:
+            return jsonify({"error": "User not found"})
+        
+        password_hash = user['password_hash']
+        
+        # Analyze the hash format
+        hash_analysis = {
+            "email": user['email'],
+            "hash_length": len(password_hash),
+            "hash_preview": password_hash[:30] + "...",
+            "contains_dollar": '$' in password_hash,
+            "starts_with_bcrypt_prefix": password_hash.startswith(('$2a$', '$2b$', '$2x$', '$2y$')),
+            "contains_pbkdf2": 'pbkdf2' in password_hash,
+            "hash_format_detected": "unknown"
+        }
+        
+        # Determine likely format
+        if password_hash.startswith(('$2a$', '$2b$', '$2x$', '$2y$')):
+            hash_analysis["hash_format_detected"] = "bcrypt"
+        elif 'pbkdf2$' in password_hash:
+            hash_analysis["hash_format_detected"] = "pbkdf2_new"
+        elif '$' in password_hash and not password_hash.startswith('$'):
+            hash_analysis["hash_format_detected"] = "pbkdf2_legacy"
+        
+        # Test with a known password to see if we can create a matching hash
+        test_password = "test123"
+        
+        # Create new hash with current system
+        from auth.security_manager import SecurityManager
+        security = SecurityManager()
+        new_hash = security.hash_password(test_password)
+        
+        hash_analysis.update({
+            "new_hash_sample": new_hash[:30] + "...",
+            "new_hash_format": "bcrypt" if new_hash.startswith(('$2a$', '$2b$', '$2x$', '$2y$')) else "pbkdf2"
+        })
+        
+        return jsonify(hash_analysis)
+        
+    except Exception as e:
+        import traceback
+        return jsonify({
+            "error": str(e),
+            "traceback": traceback.format_exc()
+        }), 500
+
 # Home and authentication routes
 @app.route("/")
 def home():
