@@ -14,7 +14,12 @@ SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets"
 ]
 
-os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"  # autorise HTTP (test uniquement)
+# Only allow insecure transport for localhost development
+if os.getenv("GOOGLE_REDIRECT_URI", "").startswith("http://127.0.0.1") or os.getenv("GOOGLE_REDIRECT_URI", "").startswith("http://localhost"):
+    os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"  # Allow HTTP for localhost only
+else:
+    # For production (HTTPS), remove insecure transport setting
+    os.environ.pop("OAUTHLIB_INSECURE_TRANSPORT", None)
 
 # Initialize secure credentials manager
 credentials_manager = GoogleCredentialsManager()
@@ -22,6 +27,10 @@ credentials_manager = GoogleCredentialsManager()
 def get_auth_flow():
     """Get OAuth flow with environment variables"""
     try:
+        # Get redirect URI from environment
+        redirect_uri = os.getenv("GOOGLE_REDIRECT_URI")
+        print(f"🔍 Using Google Redirect URI: {redirect_uri}")  # Debug log
+        
         # Get client configuration from environment variables
         client_config = {
             "web": {
@@ -29,7 +38,7 @@ def get_auth_flow():
                 "client_secret": os.getenv("GOOGLE_CLIENT_SECRET"),
                 "auth_uri": "https://accounts.google.com/o/oauth2/auth",
                 "token_uri": "https://oauth2.googleapis.com/token",
-                "redirect_uris": [os.getenv("GOOGLE_REDIRECT_URI")]
+                "redirect_uris": [redirect_uri]
             }
         }
         
@@ -37,10 +46,16 @@ def get_auth_flow():
         if not client_config["web"]["client_id"] or not client_config["web"]["client_secret"]:
             raise ValueError("Missing GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET in environment")
         
+        if not redirect_uri:
+            raise ValueError("Missing GOOGLE_REDIRECT_URI in environment")
+        
+        print(f"🔍 Client ID: {client_config['web']['client_id'][:20]}...")  # Debug log
+        print(f"🔍 Client Secret: {'*' * len(client_config['web']['client_secret'])}")  # Debug log
+        
         flow = Flow.from_client_config(
             client_config,
             scopes=SCOPES,
-            redirect_uri=os.getenv("GOOGLE_REDIRECT_URI")
+            redirect_uri=redirect_uri
         )
         
         return flow
