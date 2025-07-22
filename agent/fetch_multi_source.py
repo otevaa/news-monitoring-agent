@@ -277,17 +277,49 @@ def fetch_articles_multi_source(
     """
     print(f"Fetching articles for keywords: {keywords}")
     
-    # Fetch from RSS sources (Google News)
-    rss_articles = fetch_articles_rss(keywords, max_items)
+    # AI Enhancement: Expand keywords first (before fetching articles)
+    expanded_keywords = []
+    if show_keyword_suggestions:
+        try:
+            if ai_enhancer is None:
+                # Get user profile and create AI enhancer with user-preferred model
+                db_manager = DatabaseManager()
+                profile_manager = DatabaseUserProfileManager(db_manager)
+                user_profile = profile_manager.get_user_profile(user_id) if user_id else {}
+                ai_model = user_profile.get('ai_model', 'deepseek/deepseek-r1')
+                ai_enhancer = create_keyword_expander(ai_model)
+            
+            print("🤖 Expanding keywords with AI...")
+            french_words, english_words = ai_enhancer.expand_keywords([keywords])
+            expanded_keywords = french_words + english_words
+            
+            if expanded_keywords:
+                print(f"✨ AI suggested keywords: {', '.join(expanded_keywords)}")
+                # Create comprehensive search query with original + AI keywords
+                all_search_keywords = f"{keywords} OR {' OR '.join(expanded_keywords[:5])}"  # Limit to avoid too long queries
+                print(f"🔍 Enhanced search query: {all_search_keywords}")
+            else:
+                all_search_keywords = keywords
+        except Exception as e:
+            print(f"❌ Keyword expansion failed: {e}")
+            all_search_keywords = keywords
+    else:
+        all_search_keywords = keywords
     
-    # Fetch from social media sources
-    social_articles = fetch_twitter_articles(keywords, max_items=10)
+    # Fetch from RSS sources (Google News) with enhanced keywords
+    rss_articles = fetch_articles_rss(all_search_keywords, max_items)
+    
+    # Fetch from social media sources with enhanced keywords  
+    social_articles = fetch_twitter_articles(all_search_keywords, max_items=10)
+    
     
     # Combine with RSS articles first, then social media
     all_articles = rss_articles + social_articles
-    print(f"Total articles collected: {len(all_articles)}")
+    print(f"📊 Total articles collected: {len(all_articles)}")
     print(f"  - RSS articles: {len(rss_articles)}")
     print(f"  - Social media articles: {len(social_articles)}")
+    if expanded_keywords:
+        print(f"  - Using AI-expanded keywords: {len(expanded_keywords)} additional terms")
     
     # Smart date filtering for incremental updates
     if since_datetime:
@@ -327,49 +359,5 @@ def fetch_articles_multi_source(
         print(f"📋 Limiting to {max_items} newest articles (from {len(all_articles)} available)")
         all_articles = all_articles[:max_items]
     
-    # AI Enhancement: Suggest keyword expansion (only if enabled)
-    if show_keyword_suggestions and all_articles and len(all_articles) >= 5:
-        print("Generating keyword expansion suggestions...")
-        try:
-            if ai_enhancer is None:
-                # Get user profile and create AI enhancer with user-preferred model
-                db_manager = DatabaseManager()
-                profile_manager = DatabaseUserProfileManager(db_manager)
-                user_profile = profile_manager.get_user_profile(user_id) if user_id else {}
-                ai_model = user_profile.get('ai_model', 'deepseek/deepseek-r1')
-                ai_enhancer = create_keyword_expander(ai_model)
-            french_words, english_words = ai_enhancer.expand_keywords(keywords)
-            expanded_keywords = french_words + english_words
-            if expanded_keywords:
-                print(f"Suggested additional keywords: {', '.join(expanded_keywords)}")
-                # Store suggestions in a special article for display
-                suggestion_article = {
-                    'titre': f"💡 Mots-clés suggérés: {', '.join(expanded_keywords[:3])}{'...' if len(expanded_keywords) > 3 else ''}",
-                    'url': '#keyword-suggestions',
-                    'source': 'AI Suggestions',
-                    'date': datetime.now().isoformat(),
-                    'is_suggestion': True,
-                    'suggested_keywords': expanded_keywords
-                }
-                all_articles.insert(0, suggestion_article)  # Add at top
-        except Exception as e:
-            print(f"Keyword expansion failed: {e}")
-    elif all_articles and len(all_articles) >= 5:
-        # Still generate suggestions for logging, but don't add to articles
-        try:
-            if ai_enhancer is None:
-                # Get user profile and create AI enhancer with user-preferred model
-                db_manager = DatabaseManager()
-                profile_manager = DatabaseUserProfileManager(db_manager)
-                user_profile = profile_manager.get_user_profile(user_id) if user_id else {}
-                ai_model = user_profile.get('ai_model', 'deepseek/deepseek-r1')
-                ai_enhancer = create_keyword_expander(ai_model)
-            french_words, english_words = ai_enhancer.expand_keywords(keywords)
-            expanded_keywords = french_words + english_words
-            if expanded_keywords:
-                print(f"Suggested additional keywords: {', '.join(expanded_keywords)}")
-        except Exception as e:
-            print(f"Keyword expansion failed: {e}")
-    
-    # Return limited number of articles
+    # Return articles (keyword expansion already done at the beginning)
     return all_articles[:max_items]

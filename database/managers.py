@@ -438,29 +438,62 @@ class DatabaseCampaignManager:
             return []
 
     def get_user_stats(self, user_id: str) -> Dict:
-        """Get statistics for a user's campaigns"""
+        """Get statistics for a user's campaigns with real spreadsheet counts"""
         try:
             conn = self.db.get_connection()
             cursor = conn.cursor()
             
+            # Get basic campaign counts
             cursor.execute('''
                 SELECT 
                     COUNT(*) as total_campaigns,
-                    COUNT(CASE WHEN status = 'active' THEN 1 END) as active_campaigns,
-                    COALESCE(SUM(total_articles), 0) as total_articles,
-                    COALESCE(SUM(articles_today), 0) as articles_today
+                    COUNT(CASE WHEN status = 'active' THEN 1 END) as active_campaigns
                 FROM campaigns 
                 WHERE user_id = ?
             ''', (user_id,))
             
-            stats = cursor.fetchone()
+            basic_stats = cursor.fetchone()
+            
+            # Get campaigns with Google Sheets integration for real article counts
+            cursor.execute('''
+                SELECT c.id, ci.config
+                FROM campaigns c
+                JOIN campaign_integrations ci ON c.id = ci.campaign_id
+                WHERE c.user_id = ? AND ci.integration_type = 'google_sheets' AND ci.is_active = 1
+            ''', (user_id,))
+            
+            sheets_campaigns = cursor.fetchall()
             conn.close()
             
-            return dict(stats) if stats else {
-                'total_campaigns': 0,
-                'active_campaigns': 0,
-                'total_articles': 0,
-                'articles_today': 0
+            # Calculate real article counts from spreadsheets
+            total_articles = 0
+            articles_today = 0
+            
+            # Import GoogleSheetsManager for count checking
+            from agent.google_sheets_manager import GoogleSheetsManager
+            sheets_manager = GoogleSheetsManager()
+            
+            for campaign in sheets_campaigns:
+                try:
+                    config = json.loads(campaign['config']) if campaign['config'] else {}
+                    spreadsheet_id = config.get('spreadsheet_id')
+                    
+                    if spreadsheet_id:
+                        # Get real counts from spreadsheet
+                        count = sheets_manager.get_spreadsheet_article_count(spreadsheet_id)
+                        today_count = sheets_manager.get_spreadsheet_articles_today(spreadsheet_id)
+                        
+                        total_articles += count
+                        articles_today += today_count
+                        
+                except Exception as e:
+                    print(f"Warning: Could not get article count for campaign {campaign['id']}: {e}")
+            
+            return {
+                'total_campaigns': basic_stats['total_campaigns'] if basic_stats else 0,
+                'active_campaigns': basic_stats['active_campaigns'] if basic_stats else 0,
+                'total_articles': total_articles,
+                'articles_today': articles_today
             }
         except Exception as e:
             print(f"Error getting user stats: {e}")

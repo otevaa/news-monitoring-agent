@@ -746,6 +746,51 @@ def api_campaigns_status():
     campaigns = campaign_manager.get_user_campaigns('default')
     return jsonify({'campaigns': campaigns})
 
+@app.route('/health')
+def health_check():
+    """Health check endpoint for production monitoring"""
+    try:
+        # Check database connection
+        db_status = "ok"
+        try:
+            db_manager.get_connection().close()
+        except:
+            db_status = "error"
+        
+        # Check Ollama if available
+        ollama_status = "not_configured"
+        try:
+            import requests
+            response = requests.get("http://localhost:11434/api/version", timeout=5)
+            ollama_status = "ok" if response.status_code == 200 else "error"
+        except:
+            ollama_status = "unavailable"
+        
+        # Check scheduler status
+        scheduler_status = "ok"  # Assume OK since it's hard to check APScheduler status
+        try:
+            if hasattr(campaign_scheduler, 'scheduler') and hasattr(campaign_scheduler.scheduler, 'running'):
+                scheduler_status = "ok" if campaign_scheduler.scheduler.running else "stopped"
+        except:
+            scheduler_status = "unknown"
+        
+        return jsonify({
+            'status': 'healthy',
+            'timestamp': datetime.now().isoformat(),
+            'components': {
+                'database': db_status,
+                'ollama': ollama_status,
+                'scheduler': scheduler_status,
+                'flask': 'ok'
+            }
+        }), 200
+    except Exception as e:
+        return jsonify({
+            'status': 'unhealthy',
+            'error': str(e),
+            'timestamp': datetime.now().isoformat()
+        }), 500
+
 @app.route("/auth")
 def auth():
     return start_auth()
@@ -789,7 +834,6 @@ def oauth2callback():
                     )
                     if success:
                         print(f"Google credentials stored securely for user {user_id}")
-                        flash("Google Sheets connecté avec succès !", 'success')
                         return redirect(url_for("integrations"))
                     else:
                         raise Exception("Failed to store credentials")
@@ -834,7 +878,6 @@ def oauth2callback():
                             is_active=True
                         )
                     
-                    flash(f"Connexion automatique réussie avec {google_email} !", 'success')
                     return redirect(url_for("dashboard"))
                 else:
                     # Store Google info in session for registration
