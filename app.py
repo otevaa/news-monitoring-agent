@@ -333,7 +333,7 @@ def test_login():
         test_email = "baruchdakpovi.dev@gmail.com"
         
         # Try different common passwords
-        test_passwords = ["password123", "test123", "123456", "password"]
+        test_passwords = ["password123", "test123", "123456", "password", "74FNpKDcDFhSfNc"]
         
         results = []
         for test_password in test_passwords:
