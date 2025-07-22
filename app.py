@@ -184,7 +184,17 @@ def login_required(f):
 @app.route("/health")
 def health():
     """Health check endpoint for monitoring"""
-    return {"status": "healthy", "service": "news-monitoring-agent", "timestamp": datetime.now().isoformat()}, 200
+    return jsonify({"status": "healthy", "service": "news-monitoring-agent", "timestamp": datetime.now().isoformat()})
+
+# Debug endpoint
+@app.route("/debug")
+def debug():
+    """Debug endpoint to check Flask status"""
+    return jsonify({
+        "status": "Flask is running!",
+        "timestamp": datetime.now().isoformat(),
+        "routes": [str(rule) for rule in app.url_map.iter_rules()][:10]  # Show first 10 routes
+    })
 
 # Home and authentication routes
 @app.route("/")

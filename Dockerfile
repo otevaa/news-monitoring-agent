@@ -5,7 +5,7 @@ FROM python:3.12-slim
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     UV_NO_CACHE=1 \
-    OLLAMA_HOST=0.0.0.0:11434
+    OLLAMA_HOST=127.0.0.1:11434
 
 # Install system dependencies and Ollama
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -53,18 +53,18 @@ logfile=/var/log/supervisor.log
 [program:ollama]
 command=ollama serve
 user=appuser
-priority=100
+priority=200
 autostart=true
 autorestart=true
 stderr_logfile=/var/log/ollama.err.log
 stdout_logfile=/var/log/ollama.out.log
-environment=HOME="/home/appuser",OLLAMA_HOST="0.0.0.0:11434"
+environment=HOME="/home/appuser",OLLAMA_HOST="127.0.0.1:11434"
 
 [program:flask]
 command=/app/start_flask.sh
 directory=/app
 user=appuser
-priority=200
+priority=100
 autostart=true
 autorestart=true
 startsecs=15
@@ -131,34 +131,25 @@ RUN chown -R appuser:appuser /app /home/appuser && \
 # Create Flask startup wrapper  
 RUN echo '#!/bin/bash\n\
 set -e\n\
+echo "=== FLASK STARTUP ==="\n\
 echo "Starting Flask app..."\n\
 echo "Current directory: $(pwd)"\n\
-echo "App files: $(ls -la /app | head -10)"\n\
+echo "Current user: $(whoami)"\n\
+echo "App files: $(ls -la /app | head -5)"\n\
+echo "Python packages: $(pip list | grep -E \"flask|gunicorn\" || echo \"No Flask/Gunicorn found\")"\n\
 \n\
-# Wait a bit for Ollama to be fully ready\n\
-echo "Waiting for Ollama to be ready..."\n\
-sleep 5\n\
-\n\
-# Check if Ollama is responding (optional, not critical)\n\
-for i in {1..10}; do\n\
-  if curl -s http://localhost:11434/api/version >/dev/null 2>&1; then\n\
-    echo "Ollama confirmed ready"\n\
-    break\n\
-  fi\n\
-  echo "Waiting for Ollama to be ready... ($i/10)"\n\
-  sleep 2\n\
-done\n\
-\n\
-# Start Flask regardless of Ollama status\n\
+# Start Flask immediately - do not wait for Ollama\n\
 echo "Starting Flask application on 0.0.0.0:5000"\n\
-exec gunicorn --bind 0.0.0.0:5000 --workers 2 --timeout 120 --log-level info app:app' > /app/start_flask.sh && chmod +x /app/start_flask.sh
+echo "Flask will be accessible on all interfaces"\n\
+echo "Gunicorn configuration: --bind 0.0.0.0:5000 --workers 2 --timeout 120"\n\
+exec gunicorn --bind 0.0.0.0:5000 --workers 2 --timeout 120 --log-level info --access-logfile - --error-logfile - app:app' > /app/start_flask.sh && chmod +x /app/start_flask.sh
 
 # Expose ports (Flask as main service, Ollama internal only)
 EXPOSE 5000
 
 # Health check (Flask primary, Ollama secondary)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD curl -f http://localhost:5000/ || exit 1
+    CMD curl -f http://localhost:5000/health || exit 1
 
 # Start with initialization script
 CMD ["/app/init.sh"]
