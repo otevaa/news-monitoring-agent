@@ -271,16 +271,32 @@ class UserManager:
             conn = self.db.get_connection()
             cursor = conn.cursor()
             
+            print(f"Attempting to authenticate user: {email}")  # Debug log
+            
             cursor.execute('''
                 SELECT id, email, password_hash, name, is_active, email_verified
                 FROM users WHERE email = ?
             ''', (email,))
             
             user = cursor.fetchone()
-            if not user or not user['is_active']:
+            print(f"User found: {dict(user) if user else None}")  # Debug log
+            
+            if not user:
+                print("No user found with this email")
+                conn.close()
+                return None
+                
+            if not user['is_active']:
+                print("User account is not active")
+                conn.close()
                 return None
             
-            if check_password_hash(user['password_hash'], password):
+            print(f"Checking password hash...")  # Debug log
+            password_valid = check_password_hash(user['password_hash'], password)
+            print(f"Password validation result: {password_valid}")  # Debug log
+            
+            if password_valid:
+                print("Password is valid, updating last login...")  # Debug log
                 # Update last login
                 cursor.execute('''
                     UPDATE users SET last_login = CURRENT_TIMESTAMP 
@@ -293,13 +309,18 @@ class UserManager:
                 
                 # Log activity
                 self.log_activity(user['id'], 'user_login', 'user', user['id'])
+                print(f"Authentication successful for user: {user_dict['id']}")  # Debug log
                 
                 return user_dict
+            else:
+                print("Password validation failed")  # Debug log
             
             conn.close()
             return None
         except Exception as e:
             print(f"Error authenticating user: {e}")
+            import traceback
+            traceback.print_exc()
             return None
     
     def get_user_by_id(self, user_id: str) -> Optional[Dict]:

@@ -324,6 +324,47 @@ def test_user_creation():
             "traceback": traceback.format_exc()
         }), 500
 
+# Test login endpoint for debugging
+@app.route("/test-login")
+def test_login():
+    """Test endpoint to verify login with existing user"""
+    try:
+        # Test with the user from db-status
+        test_email = "baruchdakpovi.dev@gmail.com"
+        
+        # Try different common passwords
+        test_passwords = ["password123", "test123", "123456", "password"]
+        
+        results = []
+        for test_password in test_passwords:
+            print(f"Testing login with {test_email} / {test_password}")
+            user = auth_manager.user_manager.authenticate_user(test_email, test_password)
+            results.append({
+                "password_tried": test_password,
+                "authentication_result": dict(user) if user else None
+            })
+        
+        # Also check if user exists in database
+        conn = db_manager.get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT id, email, name, is_active, email_verified FROM users WHERE email = ?", (test_email,))
+        user_in_db = cursor.fetchone()
+        conn.close()
+        
+        return jsonify({
+            "test_email": test_email,
+            "user_in_database": dict(user_in_db) if user_in_db else None,
+            "password_tests": results,
+            "note": "If all password tests fail, the issue is likely password hashing"
+        })
+        
+    except Exception as e:
+        import traceback
+        return jsonify({
+            "error": str(e),
+            "traceback": traceback.format_exc()
+        }), 500
+
 # Home and authentication routes
 @app.route("/")
 def home():
@@ -341,15 +382,23 @@ def signin():
         email = request.form.get('email')
         password = request.form.get('password')
         
+        print(f"Login attempt - Email: {email}")  # Debug log
+        
         if not email or not password:
+            print("Missing email or password")  # Debug log
             flash('Email et mot de passe requis', 'error')
             return render_template('auth.html')
         
+        print(f"Calling auth_manager.login_user...")  # Debug log
         success, message = auth_manager.login_user(email, password, request)
+        print(f"Login result - Success: {success}, Message: {message}")  # Debug log
+        
         if success:
+            print("Login successful, redirecting to dashboard")  # Debug log
             # Don't flash success messages for login
             return redirect(url_for('dashboard'))
         else:
+            print(f"Login failed: {message}")  # Debug log
             flash(message, 'error')
     
     return render_template('auth.html')
