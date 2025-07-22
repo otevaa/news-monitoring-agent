@@ -13,7 +13,7 @@ services:
     volumes:
       - ./logs:/app/logs
       - ./data:/app/data
-      - newsmonitor_db:/app
+      - newsmonitor_db:/app/db
       - ollama_models:/home/appuser/.ollama
     restart: unless-stopped
     healthcheck:

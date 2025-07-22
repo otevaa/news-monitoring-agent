@@ -32,9 +32,27 @@ try:
     profile_manager = DatabaseUserProfileManager(db_manager) 
     integration_manager = DatabaseIntegrationManager(db_manager)
     security_manager = SecurityManager()
+    
+    # Debug: Check database file
+    import os
+    db_path = db_manager.db_path
+    print(f"✅ Database file location: {os.path.abspath(db_path)}")
+    print(f"✅ Database exists: {os.path.exists(db_path)}")
+    if os.path.exists(db_path):
+        print(f"✅ Database size: {os.path.getsize(db_path)} bytes")
+    
+    # Test database connection
+    conn = db_manager.get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT COUNT(*) FROM users")
+    user_count = cursor.fetchone()[0]
+    conn.close()
+    print(f"✅ Current users in database: {user_count}")
+    
     print("✅ Secure database system initialized")
 except Exception as e:
     print(f"❌ Database system initialization failed: {e}")
+    traceback.print_exc()
     sys.exit(1)
 
 try:

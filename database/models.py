@@ -27,8 +27,10 @@ def check_password_hash(stored_hash: str, password: str) -> bool:
 class DatabaseManager:
     """Centralized database manager for all database operations"""
     
-    def __init__(self, db_path: str = "newsmonitor.db"):
+    def __init__(self, db_path: str = "db/newsmonitor.db"):
         self.db_path = db_path
+        # Create directory if it doesn't exist
+        os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
         self.init_database()
     
     def get_connection(self):

@@ -35,6 +35,9 @@ RUN uv pip install --system -r requirements.txt
 # Copy application code
 COPY . .
 
+# Create database directory
+RUN mkdir -p /app/db
+
 # Remove development files
 RUN rm -rf .git .gitignore .env.example deploy_production.sh start_production.sh
 
@@ -100,7 +103,8 @@ wait $SUPERVISOR_PID' > /app/init.sh && chmod +x /app/init.sh
 
 # Set secure permissions
 RUN chown -R appuser:appuser /app /home/appuser && \
-    chmod -R 755 /app
+    chmod -R 755 /app && \
+    chmod 755 /app/db
 
 # Create Flask startup wrapper  
 RUN echo '#!/bin/bash\n\
