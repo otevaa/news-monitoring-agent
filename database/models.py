@@ -27,8 +27,23 @@ def check_password_hash(stored_hash: str, password: str) -> bool:
 class DatabaseManager:
     """Centralized database manager for all database operations"""
     
-    def __init__(self, db_path: str = "db/newsmonitor.db"):
+    def __init__(self, db_path: Optional[str] = None):
+        """Initialize database manager with flexible path configuration"""
+        if db_path is None:
+            # Try environment variable first
+            db_path = os.getenv('DATABASE_PATH')
+            
+            if db_path is None:
+                # Check if we're in a containerized environment (Render deployment)
+                if os.path.exists('/app/db'):
+                    db_path = "/app/db/newsmonitor.db"  # Persistent disk path
+                else:
+                    db_path = "db/newsmonitor.db"  # Local development path
+        
         self.db_path = db_path
+        
+        # Ensure directory exists
+        os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
         # Create directory if it doesn't exist
         os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
         self.init_database()
