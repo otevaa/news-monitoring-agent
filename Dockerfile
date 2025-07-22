@@ -47,6 +47,8 @@ COPY <<EOF /etc/supervisor/conf.d/supervisord.conf
 [supervisord]
 nodaemon=true
 user=root
+loglevel=info
+logfile=/var/log/supervisor.log
 
 [program:ollama]
 command=ollama serve
@@ -65,7 +67,7 @@ user=appuser
 priority=200
 autostart=true
 autorestart=true
-startsecs=10
+startsecs=15
 stderr_logfile=/var/log/flask.err.log
 stdout_logfile=/var/log/flask.out.log
 environment=HOME="/home/appuser"
@@ -75,9 +77,14 @@ EOF
 # Create initialization script
 RUN echo '#!/bin/bash\n\
 set -e\n\
+echo "=== NEWS MONITORING AGENT STARTUP ==="\n\
 echo "Starting initialization..."\n\
+echo "Current user: $(whoami)"\n\
+echo "Working directory: $(pwd)"\n\
+echo "App structure: $(ls -la /app | head -5)"\n\
 \n\
 # Start supervisor in background\n\
+echo "Starting supervisor..."\n\
 supervisord -c /etc/supervisor/conf.d/supervisord.conf &\n\
 SUPERVISOR_PID=$!\n\
 \n\
@@ -85,18 +92,33 @@ SUPERVISOR_PID=$!\n\
 echo "Waiting for Ollama to be ready..."\n\
 for i in {1..30}; do\n\
   if curl -s http://localhost:11434/api/version >/dev/null 2>&1; then\n\
-    echo "Ollama is ready!"\n\
+    echo "✅ Ollama is ready!"\n\
     break\n\
   fi\n\
-  echo "Waiting for Ollama... ($i/30)"\n\
+  echo "⏳ Waiting for Ollama... ($i/30)"\n\
   sleep 2\n\
 done\n\
 \n\
 # Download model as appuser\n\
-echo "Downloading DeepSeek R1 model..."\n\
-su appuser -c "ollama pull deepseek-r1:1.5b" || echo "Model download failed, will retry later"\n\
+echo "⬇️  Downloading DeepSeek R1 model..."\n\
+su appuser -c "ollama pull deepseek-r1:1.5b" || echo "⚠️ Model download failed, will retry later"\n\
 \n\
-echo "Initialization complete!"\n\
+# Wait for Flask to start\n\
+echo "⏳ Waiting for Flask to be ready..."\n\
+for i in {1..30}; do\n\
+  if curl -s http://localhost:5000/health >/dev/null 2>&1; then\n\
+    echo "✅ Flask is ready!"\n\
+    break\n\
+  fi\n\
+  echo "⏳ Waiting for Flask... ($i/30)"\n\
+  sleep 2\n\
+done\n\
+\n\
+echo "🚀 Initialization complete!"\n\
+echo "=== SERVICES STATUS ==="\n\
+echo "Ollama: $(curl -s http://localhost:11434/api/version 2>/dev/null && echo "✅ OK" || echo "❌ FAIL")"\n\
+echo "Flask: $(curl -s http://localhost:5000/health 2>/dev/null && echo "✅ OK" || echo "❌ FAIL")"\n\
+echo "========================"\n\
 \n\
 # Wait for supervisor\n\
 wait $SUPERVISOR_PID' > /app/init.sh && chmod +x /app/init.sh
@@ -108,26 +130,35 @@ RUN chown -R appuser:appuser /app /home/appuser && \
 
 # Create Flask startup wrapper  
 RUN echo '#!/bin/bash\n\
+set -e\n\
 echo "Starting Flask app..."\n\
+echo "Current directory: $(pwd)"\n\
+echo "App files: $(ls -la /app | head -10)"\n\
+\n\
 # Wait a bit for Ollama to be fully ready\n\
+echo "Waiting for Ollama to be ready..."\n\
 sleep 5\n\
-# Check if Ollama is responding\n\
+\n\
+# Check if Ollama is responding (optional, not critical)\n\
 for i in {1..10}; do\n\
   if curl -s http://localhost:11434/api/version >/dev/null 2>&1; then\n\
-    echo "Ollama confirmed ready, starting Flask"\n\
+    echo "Ollama confirmed ready"\n\
     break\n\
   fi\n\
   echo "Waiting for Ollama to be ready... ($i/10)"\n\
   sleep 2\n\
 done\n\
-exec gunicorn --bind 0.0.0.0:5000 --workers 2 --timeout 120 app:app' > /app/start_flask.sh && chmod +x /app/start_flask.sh
+\n\
+# Start Flask regardless of Ollama status\n\
+echo "Starting Flask application on 0.0.0.0:5000"\n\
+exec gunicorn --bind 0.0.0.0:5000 --workers 2 --timeout 120 --log-level info app:app' > /app/start_flask.sh && chmod +x /app/start_flask.sh
 
-# Expose ports
-EXPOSE 5000 11434
+# Expose ports (Flask as main service, Ollama internal only)
+EXPOSE 5000
 
-# Health check
+# Health check (Flask primary, Ollama secondary)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD curl -f http://localhost:5000/ && curl -f http://localhost:11434/api/version || exit 1
+    CMD curl -f http://localhost:5000/ || exit 1
 
 # Start with initialization script
 CMD ["/app/init.sh"]

@@ -180,6 +180,12 @@ def login_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
+# Health check endpoint
+@app.route("/health")
+def health():
+    """Health check endpoint for monitoring"""
+    return {"status": "healthy", "service": "news-monitoring-agent", "timestamp": datetime.now().isoformat()}, 200
+
 # Home and authentication routes
 @app.route("/")
 def home():
