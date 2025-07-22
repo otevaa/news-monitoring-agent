@@ -19,7 +19,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN curl -fsSL https://ollama.ai/install.sh | sh
 
 # Install uv
-RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+RUN pip install uv #curl -LsSf https://astral.sh/uv/install.sh | sh
 ENV PATH="/root/.cargo/bin:$PATH"
 
 # Create non-root user for security
