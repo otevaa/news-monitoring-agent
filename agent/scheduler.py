@@ -64,11 +64,44 @@ class CampaignScheduler:
             
             self.logger.info(f"🔍 Searching with keywords: {keywords}")
             
-            # Fetch articles with AI keyword expansion handled automatically
+            # Smart incremental fetching: check for existing articles in spreadsheet
+            since_datetime = None
+            spreadsheet_id = None
+            
+            # Find Google Sheets integration to get spreadsheet ID
+            integrations = campaign.get('integrations', [])
+            for integration in integrations:
+                # Handle both old format (strings) and new format (dicts)
+                if isinstance(integration, str):
+                    # Old format: just check if it's 'google_sheets'
+                    if integration == 'google_sheets':
+                        # Try to get spreadsheet_id from campaign directly
+                        spreadsheet_id = campaign.get('spreadsheet_id')
+                        break
+                elif isinstance(integration, dict):
+                    # New format: check type and config
+                    if integration.get('type') == 'google_sheets' and integration.get('config', {}).get('spreadsheet_id'):
+                        spreadsheet_id = integration['config']['spreadsheet_id']
+                        break
+            
+            # Get newest article datetime for incremental fetching
+            if spreadsheet_id and hasattr(self, 'sheets_manager'):
+                try:
+                    since_datetime = self.sheets_manager.get_newest_article_datetime(spreadsheet_id)
+                    if since_datetime:
+                        self.logger.info(f"📅 Incremental fetch from: {since_datetime.isoformat()}")
+                    else:
+                        self.logger.info(f"📅 First run - fetching all recent articles")
+                except Exception as e:
+                    self.logger.warning(f"Could not get newest article datetime: {e}")
+            
+            # Fetch articles with AI keyword expansion and smart date filtering
             articles = fetch_articles_multi_source(
                 keywords, 
                 max_items=max_articles, 
-                show_keyword_suggestions=True  # AI expansion handled inside fetch function
+                show_keyword_suggestions=True,  # AI expansion handled inside fetch function
+                user_id=campaign.get('user_id'),
+                since_datetime=since_datetime  # Smart incremental fetching
             )
             
             if articles:

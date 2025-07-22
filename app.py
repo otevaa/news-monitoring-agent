@@ -4,9 +4,7 @@ from agent.fetch_multi_source import fetch_articles_multi_source, fetch_articles
 from agent.google_oauth import start_auth, finish_auth, get_sheets_service, get_user_info
 from agent.async_campaign_manager import AsyncCampaignManager
 from agent.google_sheets_manager import GoogleSheetsManager
-from agent.campaign_manager import CampaignManager
 from agent.scheduler import campaign_scheduler
-from agent.user_profile_manager import UserProfileManager
 from database.models import DatabaseManager, UserManager
 from database.managers import DatabaseCampaignManager, DatabaseUserProfileManager, DatabaseIntegrationManager
 from auth.auth_manager import EnhancedAuthManager
@@ -90,7 +88,7 @@ except Exception as e:
     async_campaign_manager = FallbackAsyncCampaignManager()
 
 try:
-    user_profile_manager = UserProfileManager()
+    user_profile_manager = DatabaseUserProfileManager(db_manager)
     print("✅ User Profile Manager initialized")
 except Exception as e:
     print(f"❌ User Profile Manager initialization failed: {e}")
@@ -291,7 +289,8 @@ def quick_search():
             return jsonify({'articles': []})
         
         # Perform quick search (limited results for non-authenticated users)
-        articles = fetch_articles_multi_source(query, max_items=limit)
+        current_user = session.get('user_id')
+        articles = fetch_articles_multi_source(query, max_items=limit, user_id=current_user)
         
         # Format articles for display
         formatted_articles = []
@@ -357,7 +356,7 @@ def veille():
                              user=current_user)
 
     try:
-        articles = fetch_articles_multi_source(query, max_items=25, show_keyword_suggestions=False)
+        articles = fetch_articles_multi_source(query, max_items=25, show_keyword_suggestions=False, user_id=user_id)
     except Exception as e:
         print(f"Error with multi-source fetch, falling back to RSS: {e}")
         articles = fetch_articles_rss(query)
@@ -732,7 +731,8 @@ def api_preview():
             articles = fetch_articles_multi_source(
                 keywords, 
                 max_items=25, 
-                show_keyword_suggestions=False  # Don't show suggestions in preview
+                show_keyword_suggestions=False,  # Don't show suggestions in preview
+                user_id=None  # No user context in preview
             )
         except Exception as e:
             print(f"Error with multi-source fetch, falling back to RSS: {e}")

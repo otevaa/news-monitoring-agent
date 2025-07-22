@@ -68,54 +68,10 @@ class GoogleSheetsManager:
             print(f"Error creating sheets service: {e}")
             return None
     
-    def get_drive_service(self, user_id: Optional[str] = None):
-        """Get authenticated Google Drive service"""
-        creds_data = self._get_credentials(user_id)
-        if not creds_data:
-            print("No credentials available")
-            return None
-        
-        try:
-            # Ensure all required fields are present for refresh
-            required_fields = ['token', 'refresh_token', 'token_uri', 'client_id', 'client_secret']
-            missing_fields = [field for field in required_fields if field not in creds_data]
-            
-            if missing_fields:
-                print(f"Missing required credential fields: {missing_fields}")
-                return None
-                
-            creds = Credentials(**creds_data)
-            return build("drive", "v3", credentials=creds)
-        except Exception as e:
-            print(f"Error creating drive service: {e}")
-            return None
-    
     def list_user_spreadsheets(self) -> List[Dict]:
-        """List all spreadsheets accessible to the user"""
-        drive_service = self.get_drive_service()
-        if not drive_service:
-            return []
-        
-        try:
-            results = drive_service.files().list(
-                q="mimeType='application/vnd.google-apps.spreadsheet'",
-                fields="files(id, name, createdTime, modifiedTime)"
-            ).execute()
-            
-            spreadsheets = results.get('files', [])
-            return [
-                {
-                    'id': sheet['id'],
-                    'name': sheet['name'],
-                    'created_time': sheet['createdTime'],
-                    'modified_time': sheet['modifiedTime'],
-                    'url': f"https://docs.google.com/spreadsheets/d/{sheet['id']}"
-                }
-                for sheet in spreadsheets
-            ]
-        except HttpError as e:
-            print(f"Error listing spreadsheets: {e}")
-            return []
+        """List all spreadsheets accessible to the user - DISABLED (No Drive API Access)"""
+        print("⚠️ Spreadsheet listing disabled - requires Google Drive API access")
+        return []
     
     def create_campaign_spreadsheet(self, campaign_name: str) -> Optional[Dict]:
         """Create a new spreadsheet for a campaign"""
@@ -526,22 +482,53 @@ class GoogleSheetsManager:
             print(f"Error getting today's articles count: {e}")
             return 0
 
+    def get_newest_article_datetime(self, spreadsheet_id: str) -> Optional[datetime]:
+        """Get the datetime of the newest article in the spreadsheet for incremental fetching"""
+        sheets_service = self.get_sheets_service()
+        if not sheets_service:
+            return None
+        
+        try:
+            # Get all dates from the spreadsheet
+            result = sheets_service.spreadsheets().values().get(
+                spreadsheetId=spreadsheet_id,
+                range='A:A'  # Date column
+            ).execute()
+            
+            values = result.get('values', [])
+            if len(values) <= 1:  # No data or only header
+                return None
+            
+            newest_datetime = None
+            for row in values[1:]:  # Skip header
+                if row and len(row) > 0:
+                    date_str = row[0].strip()
+                    if date_str:
+                        try:
+                            # Parse the datetime string
+                            article_datetime = datetime.fromisoformat(date_str.replace('Z', ''))
+                            if newest_datetime is None or article_datetime > newest_datetime:
+                                newest_datetime = article_datetime
+                        except ValueError:
+                            continue
+            
+            if newest_datetime:
+                print(f"📅 Newest article in spreadsheet: {newest_datetime.isoformat()}")
+            else:
+                print("📅 No valid dates found in spreadsheet")
+            
+            return newest_datetime
+            
+        except Exception as e:
+            print(f"Error getting newest article datetime: {e}")
+            return None
+
     def is_google_sheets_connected(self) -> bool:
         """Check if Google Sheets is connected with valid credentials"""
         return self.credentials_manager.has_valid_credentials()
     
     def delete_spreadsheet(self, spreadsheet_id: str) -> bool:
-        """Delete a spreadsheet"""
-        drive_service = self.get_drive_service()
-        if not drive_service:
-            return False
-        
-        try:
-            drive_service.files().delete(fileId=spreadsheet_id).execute()
-            
-            # Note: Local data tracking is now handled by database campaigns table
-            return True
-            
-        except HttpError as e:
-            print(f"Error deleting spreadsheet: {e}")
-            return False
+        """Delete a spreadsheet - DISABLED (No Drive API Access)"""
+        print("⚠️ Spreadsheet deletion disabled - requires Google Drive API access")
+        print(f"Please manually delete spreadsheet: https://docs.google.com/spreadsheets/d/{spreadsheet_id}")
+        return False

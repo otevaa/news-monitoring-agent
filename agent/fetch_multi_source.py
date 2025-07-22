@@ -8,7 +8,8 @@ import tweepy
 from dotenv import load_dotenv
 from typing import List, Dict, Optional, Any
 from .ai_keyword_expander import create_keyword_expander
-from .user_profile_manager import UserProfileManager
+from database.managers import DatabaseUserProfileManager
+from database.models import DatabaseManager, DatabaseManager
 
 # Load environment variables
 load_dotenv()
@@ -255,10 +256,12 @@ def fetch_articles_multi_source(
     max_items: int = 25,
     show_keyword_suggestions: bool = True,
     campaigns: Optional[List[Dict]] = None,
-    ai_enhancer: Optional[Any] = None
+    ai_enhancer: Optional[Any] = None,
+    user_id: Optional[str] = None,
+    since_datetime: Optional[datetime] = None
 ) -> List[Dict]:
     """
-    Fetch articles from multiple sources (RSS, social media)
+    Fetch articles from multiple sources (RSS, social media) with smart date filtering
     
     Args:
         keywords: Search keywords
@@ -266,6 +269,8 @@ def fetch_articles_multi_source(
         show_keyword_suggestions: Whether to show AI keyword suggestions
         campaigns: List of campaign configurations
         ai_enhancer: Optional AI enhancer instance
+        user_id: User ID for profile-based settings
+        since_datetime: Fetch only articles newer than this datetime (for incremental updates)
         
     Returns:
         List of article dictionaries
@@ -284,14 +289,53 @@ def fetch_articles_multi_source(
     print(f"  - RSS articles: {len(rss_articles)}")
     print(f"  - Social media articles: {len(social_articles)}")
     
+    # Smart date filtering for incremental updates
+    if since_datetime:
+        print(f"🔍 Filtering articles newer than: {since_datetime.isoformat()}")
+        filtered_articles = []
+        for article in all_articles:
+            article_date_str = article.get('date', '')
+            if article_date_str:
+                try:
+                    article_date = datetime.fromisoformat(article_date_str.replace('Z', ''))
+                    if article_date > since_datetime:
+                        filtered_articles.append(article)
+                except ValueError:
+                    # If date parsing fails, include the article (safer approach)
+                    filtered_articles.append(article)
+            else:
+                # If no date, include the article
+                filtered_articles.append(article)
+        
+        all_articles = filtered_articles
+        print(f"📊 After date filtering: {len(all_articles)} articles (from {len(rss_articles + social_articles)} total)")
+    
+    # Sort articles by date: NEWEST FIRST for processing
+    def get_article_date(article):
+        date_str = article.get('date', '')
+        if date_str:
+            try:
+                return datetime.fromisoformat(date_str.replace('Z', ''))
+            except ValueError:
+                return datetime.min
+        return datetime.min
+    
+    all_articles.sort(key=get_article_date, reverse=True)
+    
+    # Apply limit after sorting (take the newest articles)
+    if len(all_articles) > max_items:
+        print(f"📋 Limiting to {max_items} newest articles (from {len(all_articles)} available)")
+        all_articles = all_articles[:max_items]
+    
     # AI Enhancement: Suggest keyword expansion (only if enabled)
     if show_keyword_suggestions and all_articles and len(all_articles) >= 5:
         print("Generating keyword expansion suggestions...")
         try:
             if ai_enhancer is None:
                 # Get user profile and create AI enhancer with user-preferred model
-                profile_manager = UserProfileManager()
-                user_profile = profile_manager.get_user_profile()
+                db_manager = DatabaseManager()
+                profile_manager = DatabaseUserProfileManager(db_manager)
+                user_profile = profile_manager.get_user_profile(user_id) if user_id else {}
                 ai_model = user_profile.get('ai_model', 'deepseek/deepseek-r1')
                 ai_enhancer = create_keyword_expander(ai_model)
             french_words, english_words = ai_enhancer.expand_keywords(keywords)
@@ -315,8 +359,9 @@ def fetch_articles_multi_source(
         try:
             if ai_enhancer is None:
                 # Get user profile and create AI enhancer with user-preferred model
-                profile_manager = UserProfileManager()
-                user_profile = profile_manager.get_user_profile()
+                db_manager = DatabaseManager()
+                profile_manager = DatabaseUserProfileManager(db_manager)
+                user_profile = profile_manager.get_user_profile(user_id) if user_id else {}
                 ai_model = user_profile.get('ai_model', 'deepseek/deepseek-r1')
                 ai_enhancer = create_keyword_expander(ai_model)
             french_words, english_words = ai_enhancer.expand_keywords(keywords)
