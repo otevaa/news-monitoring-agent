@@ -239,10 +239,14 @@ def db_status():
         # Get recent users
         recent_users = []
         try:
-            cursor.execute("SELECT email, created_at FROM users ORDER BY created_at DESC LIMIT 5")
-            recent_users = [{"email": row[0], "created_at": row[1]} for row in cursor.fetchall()]
+            cursor.execute("SELECT email, created_at, is_active, email_verified FROM users ORDER BY created_at DESC LIMIT 5")
+            recent_users = [{"email": row[0], "created_at": row[1], "is_active": row[2], "email_verified": row[3]} for row in cursor.fetchall()]
         except:
             recent_users = []
+        
+        # Check if /app/db directory exists and is writable
+        app_db_exists = os.path.exists('/app/db')
+        app_db_writable = os.access('/app/db', os.W_OK) if app_db_exists else False
         
         conn.close()
         
@@ -251,12 +255,23 @@ def db_status():
             "database_exists": os.path.exists(db_abs_path),
             "database_size": os.path.getsize(db_abs_path) if os.path.exists(db_abs_path) else 0,
             "database_writable": os.access(os.path.dirname(db_abs_path), os.W_OK),
+            "app_db_directory_exists": app_db_exists,
+            "app_db_directory_writable": app_db_writable,
+            "current_working_directory": os.getcwd(),
+            "environment_database_path": os.getenv('DATABASE_PATH'),
             "table_counts": stats,
             "recent_users": recent_users,
             "timestamp": datetime.now().isoformat()
         })
     except Exception as e:
-        return jsonify({"error": str(e), "timestamp": datetime.now().isoformat()}), 500
+        import os  # Import here in case it's not available globally
+        return jsonify({
+            "error": str(e), 
+            "database_path": getattr(db_manager, 'db_path', 'unknown'),
+            "current_working_directory": os.getcwd(),
+            "app_db_exists": os.path.exists('/app/db') if os.path.exists('/app') else "app_directory_not_found",
+            "timestamp": datetime.now().isoformat()
+        }), 500
 
 # Home and authentication routes
 @app.route("/")
