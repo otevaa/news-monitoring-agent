@@ -106,7 +106,7 @@ su appuser -c "ollama pull deepseek-r1:1.5b" || echo "⚠️ Model download fail
 # Wait for Flask to start\n\
 echo "⏳ Waiting for Flask to be ready..."\n\
 for i in {1..30}; do\n\
-  if curl -s http://localhost:5000/health >/dev/null 2>&1; then\n\
+  if curl -s http://localhost:${PORT:-5000}/health >/dev/null 2>&1; then\n\
     echo "✅ Flask is ready!"\n\
     break\n\
   fi\n\
@@ -117,7 +117,7 @@ done\n\
 echo "🚀 Initialization complete!"\n\
 echo "=== SERVICES STATUS ==="\n\
 echo "Ollama: $(curl -s http://localhost:11434/api/version 2>/dev/null && echo "✅ OK" || echo "❌ FAIL")"\n\
-echo "Flask: $(curl -s http://localhost:5000/health 2>/dev/null && echo "✅ OK" || echo "❌ FAIL")"\n\
+echo "Flask: $(curl -s http://localhost:${PORT:-5000}/health 2>/dev/null && echo "✅ OK" || echo "❌ FAIL")"\n\
 echo "========================"\n\
 \n\
 # Wait for supervisor\n\
@@ -139,17 +139,17 @@ echo "App files: $(ls -la /app | head -5)"\n\
 echo "Python packages: $(pip list | grep -E \"flask|gunicorn\" || echo \"No Flask/Gunicorn found\")"\n\
 \n\
 # Start Flask immediately - do not wait for Ollama\n\
-echo "Starting Flask application on 0.0.0.0:5000"\n\
+echo "Starting Flask application on 0.0.0.0:${PORT:-5000}"\n\
 echo "Flask will be accessible on all interfaces"\n\
-echo "Gunicorn configuration: --bind 0.0.0.0:5000 --workers 2 --timeout 120"\n\
-exec gunicorn --bind 0.0.0.0:5000 --workers 2 --timeout 120 --log-level info --access-logfile - --error-logfile - app:app' > /app/start_flask.sh && chmod +x /app/start_flask.sh
+echo "Gunicorn configuration: --bind 0.0.0.0:${PORT:-5000} --workers 2 --timeout 120"\n\
+exec gunicorn --bind 0.0.0.0:${PORT:-5000} --workers 2 --timeout 120 --log-level info --access-logfile - --error-logfile - app:app' > /app/start_flask.sh && chmod +x /app/start_flask.sh
 
 # Expose ports (Flask as main service, Ollama internal only)
 EXPOSE 5000
 
 # Health check (Flask primary, Ollama secondary)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD curl -f http://localhost:5000/health || exit 1
+    CMD curl -f http://localhost:${PORT:-5000}/health || exit 1
 
 # Start with initialization script
 CMD ["/app/init.sh"]

@@ -33,21 +33,39 @@ try:
     integration_manager = DatabaseIntegrationManager(db_manager)
     security_manager = SecurityManager()
     
-    # Debug: Check database file
+    # Debug: Check database file and persistence
     import os
     db_path = db_manager.db_path
-    print(f"✅ Database file location: {os.path.abspath(db_path)}")
-    print(f"✅ Database exists: {os.path.exists(db_path)}")
-    if os.path.exists(db_path):
-        print(f"✅ Database size: {os.path.getsize(db_path)} bytes")
+    db_abs_path = os.path.abspath(db_path)
+    db_dir = os.path.dirname(db_abs_path)
     
-    # Test database connection
-    conn = db_manager.get_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT COUNT(*) FROM users")
-    user_count = cursor.fetchone()[0]
-    conn.close()
-    print(f"✅ Current users in database: {user_count}")
+    print(f"✅ Database file location: {db_abs_path}")
+    print(f"✅ Database directory: {db_dir}")
+    print(f"✅ Database exists: {os.path.exists(db_abs_path)}")
+    print(f"✅ Database directory exists: {os.path.exists(db_dir)}")
+    print(f"✅ Database directory writable: {os.access(db_dir, os.W_OK)}")
+    
+    if os.path.exists(db_abs_path):
+        print(f"✅ Database size: {os.path.getsize(db_abs_path)} bytes")
+        
+        # Test database connection and show stats
+        conn = db_manager.get_connection()
+        cursor = conn.cursor()
+        
+        # Count users
+        cursor.execute("SELECT COUNT(*) FROM users")
+        user_count = cursor.fetchone()[0]
+        print(f"✅ Current users in database: {user_count}")
+        
+        # Show recent users (for debugging)
+        if user_count > 0:
+            cursor.execute("SELECT email, created_at FROM users ORDER BY created_at DESC LIMIT 3")
+            recent_users = cursor.fetchall()
+            print(f"✅ Recent users: {[dict(user) for user in recent_users]}")
+        
+        conn.close()
+    else:
+        print("⚠️  Database file does not exist - will be created")
     
     print("✅ Secure database system initialized")
 except Exception as e:
@@ -195,6 +213,50 @@ def debug():
         "timestamp": datetime.now().isoformat(),
         "routes": [str(rule) for rule in app.url_map.iter_rules()][:10]  # Show first 10 routes
     })
+
+# Database debug endpoint
+@app.route("/db-status")
+def db_status():
+    """Debug endpoint to check database status"""
+    try:
+        import os
+        db_path = db_manager.db_path
+        db_abs_path = os.path.abspath(db_path)
+        
+        # Get database stats
+        conn = db_manager.get_connection()
+        cursor = conn.cursor()
+        
+        # Count records in all main tables
+        stats = {}
+        for table in ['users', 'campaigns', 'integrations', 'user_profiles']:
+            try:
+                cursor.execute(f"SELECT COUNT(*) FROM {table}")
+                stats[table] = cursor.fetchone()[0]
+            except:
+                stats[table] = "table_not_found"
+        
+        # Get recent users
+        recent_users = []
+        try:
+            cursor.execute("SELECT email, created_at FROM users ORDER BY created_at DESC LIMIT 5")
+            recent_users = [{"email": row[0], "created_at": row[1]} for row in cursor.fetchall()]
+        except:
+            recent_users = []
+        
+        conn.close()
+        
+        return jsonify({
+            "database_path": db_abs_path,
+            "database_exists": os.path.exists(db_abs_path),
+            "database_size": os.path.getsize(db_abs_path) if os.path.exists(db_abs_path) else 0,
+            "database_writable": os.access(os.path.dirname(db_abs_path), os.W_OK),
+            "table_counts": stats,
+            "recent_users": recent_users,
+            "timestamp": datetime.now().isoformat()
+        })
+    except Exception as e:
+        return jsonify({"error": str(e), "timestamp": datetime.now().isoformat()}), 500
 
 # Home and authentication routes
 @app.route("/")
