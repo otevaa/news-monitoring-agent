@@ -1,5 +1,4 @@
 import os
-import json
 from flask import session, redirect, request, url_for
 from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build

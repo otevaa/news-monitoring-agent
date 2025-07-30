@@ -5,12 +5,10 @@ from flask import session, request, redirect, url_for, flash
 from functools import wraps
 from typing import Optional, Dict, Tuple
 import secrets
-import os
-import json
 import uuid
 from datetime import datetime, timedelta
 from database.models import DatabaseManager, UserManager, SessionManager
-from database.managers import DatabaseUserProfileManager, DatabaseIntegrationManager
+from database.managers import DatabaseIntegrationManager
 from auth.security_manager import SecurityManager, SecureCredentialManager, RateLimiter
 
 
@@ -21,7 +19,6 @@ class EnhancedAuthManager:
         self.db_manager = DatabaseManager()
         self.user_manager = UserManager(self.db_manager)
         self.session_manager = SessionManager(self.db_manager)
-        self.profile_manager = DatabaseUserProfileManager(self.db_manager)
         self.integration_manager = DatabaseIntegrationManager(self.db_manager)
         self.security = SecurityManager()
         self.credential_manager = SecureCredentialManager(self.security)
@@ -42,9 +39,6 @@ class EnhancedAuthManager:
         
         user_id = self.user_manager.create_user(email, password, name)
         if user_id:
-            # Create default profile
-            self.profile_manager.create_default_profile(user_id)
-            
             # Log security event
             self.security.log_security_event(
                 'user_registered',
@@ -94,9 +88,6 @@ class EnhancedAuthManager:
         # Update last login
         self.user_manager.update_last_login(user['id'])
         
-        # Clean up old files for security
-        self._cleanup_temp_credentials()
-        
         return True, "Connexion réussie"
     
     def logout_user(self, user_id: Optional[str] = None) -> bool:
@@ -110,9 +101,6 @@ class EnhancedAuthManager:
         
         # Clear all session data
         session.clear()
-        
-        # Clear any Google OAuth credentials files (security improvement)
-        self._cleanup_temp_credentials()
         
         return True
     
@@ -192,23 +180,6 @@ class EnhancedAuthManager:
             'last_login': sessions[0]['created_at'] if sessions else None,
             'login_locations': list(set([s['ip_address'] for s in sessions if s['ip_address']]))
         }
-
-    def _cleanup_temp_credentials(self):
-        """Clean up temporary credential files for security"""
-        temp_files = [
-            'user_credentials.json',
-            '.secure_credentials',
-            'campaigns.json',
-            'user_profiles.json'
-        ]
-        
-        for file in temp_files:
-            if os.path.exists(file):
-                try:
-                    os.remove(file)
-                    print(f"Cleaned up temporary file: {file}")
-                except Exception as e:
-                    print(f"Error cleaning up {file}: {e}")
 
 
 # Global auth manager instance

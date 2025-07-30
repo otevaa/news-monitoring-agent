@@ -12,9 +12,6 @@ services:
       - .env
     volumes:
       - ./logs:/app/logs
-      - ./data:/app/data
-      - newsmonitor_db:/app/db
-      - ollama_models:/home/appuser/.ollama
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5000/"]
@@ -34,9 +31,3 @@ services:
     depends_on:
       - newsmonitor
     restart: unless-stopped
-
-volumes:
-  newsmonitor_db:
-    driver: local
-  ollama_models:
-    driver: local

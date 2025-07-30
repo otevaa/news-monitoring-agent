@@ -198,54 +198,6 @@ def fetch_google_news_articles(keywords, max_items=25):
         print(f"Error fetching Google News articles: {e}")
         return []
 
-def fetch_x_articles(keywords, max_items=5):
-    """Fetch Twitter/X posts using API (requires configuration)"""
-    articles = []
-    
-    try:
-        # Check if X API credentials are configured
-        api_key = os.getenv('X_API_KEY')
-        api_secret = os.getenv('X_API_SECRET')
-        access_token = os.getenv('X_ACCESS_TOKEN')
-        access_token_secret = os.getenv('X_ACCESS_TOKEN_SECRET')
-        
-        if not all([api_key, api_secret, access_token, access_token_secret]):
-            print("X API credentials not configured. Skipping Twitter/X fetching.")
-            return []
-        
-        try:
-            # Create API instance
-            auth = tweepy.OAuthHandler(api_key, api_secret)  # type: ignore
-            auth.set_access_token(access_token, access_token_secret)
-            api = tweepy.API(auth, wait_on_rate_limit=True)  # type: ignore
-            
-            # Search for tweets
-            tweets = tweepy.Cursor(api.search_tweets,  # type: ignore 
-                                 q=keywords, 
-                                 lang="fr", 
-                                 result_type="recent",
-                                 tweet_mode="extended").items(max_items)
-            
-            for tweet in tweets:
-                article = {
-                    'titre': tweet.full_text[:100] + "..." if len(tweet.full_text) > 100 else tweet.full_text,
-                    'url': f"https://twitter.com/{tweet.user.screen_name}/status/{tweet.id}",
-                    'source': 'Twitter/X',
-                    'date': tweet.created_at.isoformat(),
-                    'auteur': tweet.user.screen_name
-                }
-                articles.append(article)
-                
-        except Exception as e:
-            print(f"Error with X API: {e}")
-            return []
-        
-    except Exception as e:
-        print(f"Error fetching Twitter articles: {e}")
-        return []
-    
-    return articles
-
 # Keep the original function for backward compatibility
 def fetch_articles_from_google_news(keywords, max_items=25):
     """Backward compatibility wrapper"""

@@ -12,18 +12,6 @@ import json
 from auth.security_manager import SecurityManager
 
 
-def generate_password_hash(password: str) -> str:
-    """Generate password hash using enhanced security"""
-    security = SecurityManager()
-    return security.hash_password(password)
-
-
-def check_password_hash(stored_hash: str, password: str) -> bool:
-    """Check password against stored hash"""
-    security = SecurityManager()
-    return security.verify_password(password, stored_hash)
-
-
 class DatabaseManager:
     """Centralized database manager for all database operations"""
     
@@ -213,6 +201,7 @@ class UserManager:
     
     def __init__(self, db_manager: DatabaseManager):
         self.db = db_manager
+        self.security = SecurityManager()
     
     def create_user(self, email: str, password: str, name: str) -> Optional[str]:
         """Create a new user account"""
@@ -227,7 +216,8 @@ class UserManager:
                 return None  # User already exists
             
             user_id = str(uuid.uuid4())
-            password_hash = generate_password_hash(password)
+            # Hash the password
+            password_hash = self.security.hash_password(password)
             verification_token = secrets.token_urlsafe(32)
             
             print(f"Creating user: {email} with ID: {user_id}")  # Debug log
@@ -292,7 +282,7 @@ class UserManager:
                 return None
             
             print(f"Checking password hash...")  # Debug log
-            password_valid = check_password_hash(user['password_hash'], password)
+            password_valid = self.security.verify_password(password, user['password_hash'])
             print(f"Password validation result: {password_valid}")  # Debug log
             
             if password_valid:
@@ -408,11 +398,11 @@ class UserManager:
             cursor.execute('SELECT password_hash FROM users WHERE id = ?', (user_id,))
             user = cursor.fetchone()
             
-            if not user or not check_password_hash(user['password_hash'], old_password):
+            if not user or not self.security.verify_password(old_password, user['password_hash']):
                 return False
             
             # Update password
-            new_password_hash = generate_password_hash(new_password)
+            new_password_hash = self.security.hash_password(new_password)
             cursor.execute('''
                 UPDATE users SET password_hash = ?, updated_at = CURRENT_TIMESTAMP 
                 WHERE id = ?
@@ -491,6 +481,103 @@ class UserManager:
             conn.close()
         except Exception as e:
             print(f"Error logging activity: {e}")
+
+    def get_user_profile(self, user_id: str) -> Optional[Dict]:
+        """Get user profile or create default if not exists"""
+        try:
+            conn = self.db.get_connection()
+            cursor = conn.cursor()
+            
+            cursor.execute('''
+                SELECT * FROM user_profiles WHERE user_id = ?
+            ''', (user_id,))
+            
+            profile = cursor.fetchone()
+            
+            if not profile:
+                # Create default profile
+                profile_id = str(uuid.uuid4())
+                cursor.execute('''
+                    INSERT INTO user_profiles (id, user_id)
+                    VALUES (?, ?)
+                ''', (profile_id, user_id))
+                conn.commit()
+                
+                # Fetch the newly created profile
+                cursor.execute('''
+                    SELECT * FROM user_profiles WHERE user_id = ?
+                ''', (user_id,))
+                profile = cursor.fetchone()
+            
+            conn.close()
+            return dict(profile) if profile else None
+        except Exception as e:
+            print(f"Error getting user profile: {e}")
+            return None
+    
+    def update_user_profile(self, user_id: str, updates: Dict) -> bool:
+        """Update user profile settings"""
+        try:
+            conn = self.db.get_connection()
+            cursor = conn.cursor()
+            
+            # Ensure profile exists
+            profile = self.get_user_profile(user_id)
+            if not profile:
+                return False
+            
+            # Build update query
+            allowed_fields = ['ai_model', 'ai_filtering_enabled', 'keyword_expansion_enabled', 
+                            'priority_alerts_enabled', 'language', 'timezone']
+            set_clauses = []
+            values = []
+            
+            for field, value in updates.items():
+                if field in allowed_fields:
+                    set_clauses.append(f"{field} = ?")
+                    values.append(value)
+            
+            if not set_clauses:
+                return False
+            
+            set_clauses.append("updated_at = CURRENT_TIMESTAMP")
+            values.append(user_id)
+            
+            query = f"UPDATE user_profiles SET {', '.join(set_clauses)} WHERE user_id = ?"
+            cursor.execute(query, values)
+            
+            conn.commit()
+            conn.close()
+            
+            if cursor.rowcount > 0:
+                self.log_activity(user_id, 'profile_updated', 'user_profile', user_id, {'fields': list(updates.keys())})
+                return True
+            return False
+        except Exception as e:
+            print(f"Error updating user profile: {e}")
+            return False
+    
+    def get_user_ai_settings(self, user_id: str) -> Dict:
+        """Get AI settings for a user"""
+        profile = self.get_user_profile(user_id)
+        if not profile:
+            return self.get_default_ai_settings()
+        
+        return {
+            'model': profile.get('ai_model', 'openai-gpt3.5'),
+            'filtering_enabled': bool(profile.get('ai_filtering_enabled', 1)),
+            'keyword_expansion_enabled': bool(profile.get('keyword_expansion_enabled', 1)),
+            'priority_alerts_enabled': bool(profile.get('priority_alerts_enabled', 1))
+        }
+    
+    def get_default_ai_settings(self) -> Dict:
+        """Get default AI settings"""
+        return {
+            'model': 'deepseek/deepseek-r1',
+            'filtering_enabled': True,
+            'keyword_expansion_enabled': True,
+            'priority_alerts_enabled': True
+        }
 
 
 class SessionManager:

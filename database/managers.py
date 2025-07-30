@@ -438,62 +438,29 @@ class DatabaseCampaignManager:
             return []
 
     def get_user_stats(self, user_id: str) -> Dict:
-        """Get statistics for a user's campaigns with real spreadsheet counts"""
+        """Get statistics for a user's campaigns"""
         try:
             conn = self.db.get_connection()
             cursor = conn.cursor()
             
-            # Get basic campaign counts
             cursor.execute('''
                 SELECT 
                     COUNT(*) as total_campaigns,
-                    COUNT(CASE WHEN status = 'active' THEN 1 END) as active_campaigns
+                    COUNT(CASE WHEN status = 'active' THEN 1 END) as active_campaigns,
+                    COALESCE(SUM(total_articles), 0) as total_articles,
+                    COALESCE(SUM(articles_today), 0) as articles_today
                 FROM campaigns 
                 WHERE user_id = ?
             ''', (user_id,))
             
-            basic_stats = cursor.fetchone()
-            
-            # Get campaigns with Google Sheets integration for real article counts
-            cursor.execute('''
-                SELECT c.id, ci.config
-                FROM campaigns c
-                JOIN campaign_integrations ci ON c.id = ci.campaign_id
-                WHERE c.user_id = ? AND ci.integration_type = 'google_sheets' AND ci.is_active = 1
-            ''', (user_id,))
-            
-            sheets_campaigns = cursor.fetchall()
+            stats = cursor.fetchone()
             conn.close()
             
-            # Calculate real article counts from spreadsheets
-            total_articles = 0
-            articles_today = 0
-            
-            # Import GoogleSheetsManager for count checking
-            from agent.google_sheets_manager import GoogleSheetsManager
-            sheets_manager = GoogleSheetsManager()
-            
-            for campaign in sheets_campaigns:
-                try:
-                    config = json.loads(campaign['config']) if campaign['config'] else {}
-                    spreadsheet_id = config.get('spreadsheet_id')
-                    
-                    if spreadsheet_id:
-                        # Get real counts from spreadsheet
-                        count = sheets_manager.get_spreadsheet_article_count(spreadsheet_id)
-                        today_count = sheets_manager.get_spreadsheet_articles_today(spreadsheet_id)
-                        
-                        total_articles += count
-                        articles_today += today_count
-                        
-                except Exception as e:
-                    print(f"Warning: Could not get article count for campaign {campaign['id']}: {e}")
-            
-            return {
-                'total_campaigns': basic_stats['total_campaigns'] if basic_stats else 0,
-                'active_campaigns': basic_stats['active_campaigns'] if basic_stats else 0,
-                'total_articles': total_articles,
-                'articles_today': articles_today
+            return dict(stats) if stats else {
+                'total_campaigns': 0,
+                'active_campaigns': 0,
+                'total_articles': 0,
+                'articles_today': 0
             }
         except Exception as e:
             print(f"Error getting user stats: {e}")
@@ -721,6 +688,42 @@ class DatabaseIntegrationManager:
             print(f"Error updating integration: {e}")
             return False
     
+    def get_integration(self, user_id: str, integration_type: str) -> Optional[Dict]:
+        """Get specific integration for a user"""
+        try:
+            conn = self.db.get_connection()
+            cursor = conn.cursor()
+            
+            cursor.execute('''
+                SELECT * FROM user_integrations 
+                WHERE user_id = ? AND integration_type = ?
+                ORDER BY created_at DESC
+                LIMIT 1
+            ''', (user_id, integration_type))
+            
+            result = cursor.fetchone()
+            conn.close()
+            
+            if result:
+                integration_dict = dict(result)
+                # Parse config JSON if present
+                if integration_dict['integration_config']:
+                    try:
+                        integration_dict['config'] = json.loads(integration_dict['integration_config'])
+                    except json.JSONDecodeError:
+                        integration_dict['config'] = {}
+                else:
+                    integration_dict['config'] = {}
+                return integration_dict
+            return None
+        except Exception as e:
+            print(f"Error getting integration: {e}")
+            return None
+    
+    def connect_integration(self, user_id: str, integration_type: str, config: Dict, is_active: bool = True) -> bool:
+        """Connect/update an integration - alias for update_integration"""
+        return self.update_integration(user_id, integration_type, config, is_active)
+    
     def disconnect_integration(self, user_id: str, integration_type: str) -> bool:
         """Disconnect an integration for user"""
         try:
@@ -741,3 +744,54 @@ class DatabaseIntegrationManager:
         except Exception as e:
             print(f"Error disconnecting integration: {e}")
             return False
+
+
+# Global instances
+_db_manager = None
+_campaign_manager = None
+_integration_manager = None
+_user_manager = None
+_session_manager = None
+
+
+def get_db_manager():
+    """Get global database manager instance"""
+    global _db_manager
+    if _db_manager is None:
+        from database.models import DatabaseManager
+        _db_manager = DatabaseManager()
+    return _db_manager
+
+
+def get_campaign_manager():
+    """Get global campaign manager instance"""
+    global _campaign_manager
+    if _campaign_manager is None:
+        _campaign_manager = DatabaseCampaignManager(get_db_manager())
+    return _campaign_manager
+
+
+def get_integration_manager():
+    """Get global integration manager instance"""
+    global _integration_manager
+    if _integration_manager is None:
+        _integration_manager = DatabaseIntegrationManager(get_db_manager())
+    return _integration_manager
+
+
+def get_user_manager():
+    """Get global user manager instance"""
+    global _user_manager
+    if _user_manager is None:
+        from database.models import UserManager
+        _user_manager = UserManager(get_db_manager())
+    return _user_manager
+
+
+def get_session_manager():
+    """Get global session manager instance"""
+    global _session_manager
+    if _session_manager is None:
+        from database.models import SessionManager
+        _session_manager = SessionManager(get_db_manager())
+    return _session_manager

@@ -1,33 +1,19 @@
-import json
-import os
+"""
+Integration Manager - Database-based integration management
+"""
 from datetime import datetime
 from typing import Dict, Optional, List
 import requests
+from database.managers import get_integration_manager
+
 
 class IntegrationManager:
-    def __init__(self, data_file="integrations.json"):
-        self.data_file = data_file
-        self.integrations = self._load_integrations()
+    """Wrapper class for database-based integration management"""
     
-    def _load_integrations(self) -> Dict:
-        """Load integrations from JSON file"""
-        if os.path.exists(self.data_file):
-            try:
-                with open(self.data_file, 'r', encoding='utf-8') as f:
-                    return json.load(f)
-            except (json.JSONDecodeError, FileNotFoundError):
-                return {}
-        return {}
+    def __init__(self):
+        self.db_integration_manager = get_integration_manager()
     
-    def _save_integrations(self):
-        """Save integrations to JSON file"""
-        try:
-            with open(self.data_file, 'w', encoding='utf-8') as f:
-                json.dump(self.integrations, f, indent=2, ensure_ascii=False)
-        except Exception as e:
-            print(f"Error saving integrations: {e}")
-    
-    def configure_airtable(self, api_key: str, base_id: str, table_name: str) -> bool:
+    def configure_airtable(self, user_id: str, api_key: str, base_id: str, table_name: str) -> bool:
         """Configure Airtable integration"""
         try:
             # Test the connection
@@ -44,20 +30,18 @@ class IntegrationManager:
                 tables = response.json().get('tables', [])
                 table_exists = any(table['name'] == table_name for table in tables)
                 
-                self.integrations['airtable'] = {
+                config = {
                     'api_key': api_key,
                     'base_id': base_id,
                     'table_name': table_name,
                     'base_name': f'Base {base_id[:8]}...',
                     'base_url': f'https://airtable.com/{base_id}',
-                    'configured_at': datetime.now().isoformat(),
-                    'last_sync': None,
-                    'total_records': 0,
                     'table_exists': table_exists
                 }
                 
-                self._save_integrations()
-                return True
+                return self.db_integration_manager.connect_integration(
+                    user_id, 'airtable', config, True
+                )
             else:
                 print(f"Airtable API error: {response.status_code}")
                 return False
@@ -66,81 +50,82 @@ class IntegrationManager:
             print(f"Error configuring Airtable: {e}")
             return False
     
-    def is_airtable_configured(self) -> bool:
+    def is_airtable_configured(self, user_id: str) -> bool:
         """Check if Airtable is configured"""
-        return 'airtable' in self.integrations and self.integrations['airtable'].get('api_key')
+        integration = self.db_integration_manager.get_integration(user_id, 'airtable')
+        return integration is not None and integration.get('is_active', False)
     
-    def get_airtable_status(self) -> Optional[Dict]:
+    def get_airtable_status(self, user_id: str) -> Optional[Dict]:
         """Get Airtable integration status"""
-        if self.is_airtable_configured():
-            return self.integrations['airtable']
-        return None
-    
-    def get_google_sheets_status(self) -> Optional[Dict]:
-        """Get Google Sheets integration status"""
-        google_sheets_data = self.integrations.get('google_sheets')
-        if google_sheets_data and google_sheets_data.get('connected'):
+        integration = self.db_integration_manager.get_integration(user_id, 'airtable')
+        if integration and integration.get('is_active'):
+            config = integration.get('config', {})
             return {
-                'connected': True,
-                'connected_at': google_sheets_data.get('connected_at'),
-                'total_records': google_sheets_data.get('total_records', 0),
-                'successful_syncs': google_sheets_data.get('successful_syncs', 0),
-                'last_sync': google_sheets_data.get('last_sync')
+                'api_key': config.get('api_key'),
+                'base_id': config.get('base_id'),
+                'table_name': config.get('table_name'),
+                'base_name': config.get('base_name'),
+                'base_url': config.get('base_url'),
+                'configured_at': integration.get('created_at'),
+                'last_sync': integration.get('updated_at'),
+                'total_records': config.get('total_records', 0),
+                'table_exists': config.get('table_exists', False)
             }
         return None
     
-    def disconnect_integration(self, integration_name: str) -> bool:
+    def get_google_sheets_status(self, user_id: str) -> Optional[Dict]:
+        """Get Google Sheets integration status"""
+        integration = self.db_integration_manager.get_integration(user_id, 'google_sheets')
+        if integration and integration.get('is_active'):
+            config = integration.get('config', {})
+            return {
+                'connected': True,
+                'connected_at': integration.get('created_at'),
+                'total_records': config.get('total_records', 0),
+                'successful_syncs': config.get('successful_syncs', 0),
+                'last_sync': integration.get('updated_at')
+            }
+        return None
+    
+    def disconnect_integration(self, user_id: str, integration_name: str) -> bool:
         """Disconnect an integration"""
-        if integration_name in self.integrations:
-            del self.integrations[integration_name]
-            self._save_integrations()
-            return True
-        return False
+        return self.db_integration_manager.disconnect_integration(user_id, integration_name)
     
-    def get_active_integrations_count(self) -> int:
+    def get_active_integrations_count(self, user_id: str) -> int:
         """Get number of active integrations"""
-        count = 0
-        
-        # Check Airtable integration
-        if self.is_airtable_configured():
-            count += 1
-        
-        # Check Google Sheets integration (need to check session)
-        # This will be updated when we have session access
-        if self.integrations.get('google_sheets', {}).get('connected', False):
-            count += 1
-            
-        return count
+        integrations = self.db_integration_manager.get_user_integrations(user_id)
+        return len([i for i in integrations if i.get('is_active', False)])
     
-    def update_google_sheets_status(self, connected: bool):
+    def update_google_sheets_status(self, user_id: str, connected: bool):
         """Update Google Sheets connection status"""
-        if 'google_sheets' not in self.integrations:
-            self.integrations['google_sheets'] = {}
-        
-        self.integrations['google_sheets']['connected'] = connected
         if connected:
-            self.integrations['google_sheets']['connected_at'] = datetime.now().isoformat()
+            config = {'connected': True}
+            self.db_integration_manager.connect_integration(
+                user_id, 'google_sheets', config, True
+            )
         else:
-            self.integrations['google_sheets']['connected_at'] = None
-        
-        self._save_integrations()
+            self.db_integration_manager.disconnect_integration(user_id, 'google_sheets')
     
-    def get_usage_stats(self) -> Dict:
+    def get_usage_stats(self, user_id: str) -> Dict:
         """Get usage statistics for integrations"""
+        integrations = self.db_integration_manager.get_user_integrations(user_id)
+        
         total_articles = 0
         articles_today = 0
         successful_syncs = 0
         last_sync = None
         
         # Calculate stats from all integrations
-        for integration_data in self.integrations.values():
-            total_articles += integration_data.get('total_records', 0)
-            successful_syncs += integration_data.get('successful_syncs', 0)
-            
-            integration_last_sync = integration_data.get('last_sync')
-            if integration_last_sync:
-                if not last_sync or integration_last_sync > last_sync:
-                    last_sync = integration_last_sync
+        for integration in integrations:
+            if integration.get('is_active'):
+                config = integration.get('config', {})
+                total_articles += config.get('total_records', 0)
+                successful_syncs += config.get('successful_syncs', 0)
+                
+                integration_last_sync = integration.get('updated_at')
+                if integration_last_sync:
+                    if not last_sync or integration_last_sync > last_sync:
+                        last_sync = integration_last_sync
         
         return {
             'total_articles_sent': total_articles,
@@ -149,12 +134,13 @@ class IntegrationManager:
             'last_sync': last_sync[:10] if last_sync else 'Jamais'
         }
     
-    def send_to_airtable(self, articles: List[Dict], campaign_name: Optional[str] = None) -> bool:
+    def send_to_airtable(self, user_id: str, articles: List[Dict], campaign_name: Optional[str] = None) -> bool:
         """Send articles to Airtable"""
-        if not self.is_airtable_configured():
+        integration = self.db_integration_manager.get_integration(user_id, 'airtable')
+        if not integration or not integration.get('is_active'):
             return False
         
-        config = self.integrations['airtable']
+        config = integration.get('config', {})
         
         try:
             headers = {
@@ -194,9 +180,11 @@ class IntegrationManager:
             
             # Update stats
             config['total_records'] = config.get('total_records', 0) + len(articles)
-            config['last_sync'] = datetime.now().isoformat()
             config['successful_syncs'] = config.get('successful_syncs', 0) + 1
-            self._save_integrations()
+            
+            self.db_integration_manager.connect_integration(
+                user_id, 'airtable', config, True
+            )
             
             return True
             
@@ -204,37 +192,40 @@ class IntegrationManager:
             print(f"Error sending to Airtable: {e}")
             return False
     
-    def send_to_google_sheets(self, articles: List[Dict], campaign_name: Optional[str] = None) -> bool:
+    def send_to_google_sheets(self, user_id: str, articles: List[Dict], campaign_name: Optional[str] = None) -> bool:
         """Send articles to Google Sheets"""
-        # This would integrate with the existing Google Sheets functionality
-        # For now, return True to indicate success
         try:
-            # Update stats
-            if 'google_sheets' not in self.integrations:
-                self.integrations['google_sheets'] = {
-                    'total_records': 0,
-                    'successful_syncs': 0
-                }
+            integration = self.db_integration_manager.get_integration(user_id, 'google_sheets')
+            if not integration:
+                # Create initial integration
+                config = {'total_records': 0, 'successful_syncs': 0}
+                self.db_integration_manager.connect_integration(
+                    user_id, 'google_sheets', config, True
+                )
+            else:
+                config = integration.get('config', {})
             
-            config = self.integrations['google_sheets']
+            # Update stats
             config['total_records'] = config.get('total_records', 0) + len(articles)
-            config['last_sync'] = datetime.now().isoformat()
             config['successful_syncs'] = config.get('successful_syncs', 0) + 1
-            self._save_integrations()
+            
+            self.db_integration_manager.connect_integration(
+                user_id, 'google_sheets', config, True
+            )
             
             return True
         except Exception as e:
             print(f"Error sending to Google Sheets: {e}")
             return False
     
-    def send_articles(self, articles: List[Dict], integrations: List[str], campaign_name: Optional[str] = None) -> Dict[str, bool]:
+    def send_articles(self, user_id: str, articles: List[Dict], integrations: List[str], campaign_name: Optional[str] = None) -> Dict[str, bool]:
         """Send articles to specified integrations"""
         results = {}
         
         for integration in integrations:
             if integration == 'airtable':
-                results['airtable'] = self.send_to_airtable(articles, campaign_name)
+                results['airtable'] = self.send_to_airtable(user_id, articles, campaign_name)
             elif integration == 'google_sheets':
-                results['google_sheets'] = self.send_to_google_sheets(articles, campaign_name)
+                results['google_sheets'] = self.send_to_google_sheets(user_id, articles, campaign_name)
         
         return results

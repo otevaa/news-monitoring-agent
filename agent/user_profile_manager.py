@@ -1,36 +1,16 @@
 """
 User Profile Manager
-Manages user preferences and AI settings
+Manages user preferences and AI settings using database
 """
 
-import json
-import os
 from typing import Dict, Optional
+from database.managers import get_user_manager
 
 class UserProfileManager:
     """Manages user profiles and AI preferences"""
     
     def __init__(self):
-        self.profiles_file = "user_profiles.json"
-        self.profiles = self._load_profiles()
-    
-    def _load_profiles(self) -> Dict:
-        """Load user profiles from JSON file"""
-        if os.path.exists(self.profiles_file):
-            try:
-                with open(self.profiles_file, 'r', encoding='utf-8') as f:
-                    return json.load(f)
-            except (json.JSONDecodeError, FileNotFoundError):
-                return {}
-        return {}
-    
-    def _save_profiles(self):
-        """Save user profiles to JSON file"""
-        try:
-            with open(self.profiles_file, 'w', encoding='utf-8') as f:
-                json.dump(self.profiles, f, indent=2, ensure_ascii=False)
-        except Exception as e:
-            print(f"Error saving user profiles: {e}")
+        self.user_manager = get_user_manager()
     
     def get_default_profile(self) -> Dict:
         """Get default profile settings"""
@@ -45,32 +25,42 @@ class UserProfileManager:
     
     def get_user_profile(self, user_id: str = 'default') -> Dict:
         """Get user profile or return default"""
-        if user_id in self.profiles:
-            return self.profiles[user_id]
+        try:
+            profile = self.user_manager.get_user_profile(user_id)
+            if profile:
+                # Convert database booleans (0/1) to Python booleans
+                profile['ai_filtering_enabled'] = bool(profile.get('ai_filtering_enabled', 1))
+                profile['keyword_expansion_enabled'] = bool(profile.get('keyword_expansion_enabled', 1))
+                profile['priority_alerts_enabled'] = bool(profile.get('priority_alerts_enabled', 1))
+                return profile
+        except Exception as e:
+            print(f"Error getting user profile: {e}")
+        
         return self.get_default_profile()
     
     def update_user_profile(self, user_id: str, updates: Dict) -> bool:
         """Update user profile"""
         try:
-            if user_id not in self.profiles:
-                self.profiles[user_id] = self.get_default_profile()
+            # Convert boolean values to integers for database storage
+            db_updates = {}
+            for key, value in updates.items():
+                if key in ['ai_filtering_enabled', 'keyword_expansion_enabled', 'priority_alerts_enabled']:
+                    db_updates[key] = 1 if value else 0
+                else:
+                    db_updates[key] = value
             
-            self.profiles[user_id].update(updates)
-            self._save_profiles()
-            return True
+            return self.user_manager.update_user_profile(user_id, db_updates)
         except Exception as e:
             print(f"Error updating user profile: {e}")
             return False
     
     def get_ai_settings(self, user_id: str = 'default') -> Dict:
         """Get AI settings for a user"""
-        profile = self.get_user_profile(user_id)
-        return {
-            'model': profile.get('ai_model', 'openai-gpt3.5'),
-            'filtering_enabled': profile.get('ai_filtering_enabled', True),
-            'keyword_expansion_enabled': profile.get('keyword_expansion_enabled', True),
-            'priority_alerts_enabled': profile.get('priority_alerts_enabled', True)
-        }
+        try:
+            return self.user_manager.get_user_ai_settings(user_id)
+        except Exception as e:
+            print(f"Error getting AI settings: {e}")
+            return self.user_manager.get_default_ai_settings()
     
     def get_available_models(self) -> Dict:
         """Get list of available AI models"""
@@ -96,6 +86,12 @@ class UserProfileManager:
             'ollama-llama2': {
                 'name': 'Ollama Llama 2',
                 'description': 'Local, privé, gratuit',
+                'cost': 'Gratuit',
+                'provider': 'Ollama'
+            },
+            'deepseek/deepseek-r1': {
+                'name': 'DeepSeek R1',
+                'description': 'IA avancée, local via Ollama',
                 'cost': 'Gratuit',
                 'provider': 'Ollama'
             },

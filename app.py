@@ -273,57 +273,6 @@ def db_status():
             "timestamp": datetime.now().isoformat()
         }), 500
 
-# Simple user creation test endpoint
-@app.route("/test-user-creation")
-def test_user_creation():
-    """Test endpoint to create a user and immediately verify"""
-    try:
-        import uuid
-        test_email = f"test_{str(uuid.uuid4())[:8]}@test.com"
-        test_password = "test123"
-        test_name = "Test User"
-        
-        print(f"Testing user creation with email: {test_email}")
-        
-        # Create user
-        user_id = auth_manager.register_user(test_email, test_password, test_name)
-        print(f"Register user returned: {user_id}")
-        
-        if user_id:
-            # Immediately check if user exists in database
-            conn = db_manager.get_connection()
-            cursor = conn.cursor()
-            cursor.execute("SELECT id, email, name FROM users WHERE id = ?", (user_id,))
-            user = cursor.fetchone()
-            
-            # Check total user count
-            cursor.execute("SELECT COUNT(*) FROM users")
-            total_users = cursor.fetchone()[0]
-            
-            conn.close()
-            
-            return jsonify({
-                "status": "success",
-                "user_created": user_id,
-                "user_found_in_db": dict(user) if user else None,
-                "total_users_in_db": total_users,
-                "test_email": test_email
-            })
-        else:
-            return jsonify({
-                "status": "failed",
-                "error": "register_user returned None",
-                "test_email": test_email
-            })
-            
-    except Exception as e:
-        import traceback
-        return jsonify({
-            "status": "error", 
-            "error": str(e),
-            "traceback": traceback.format_exc()
-        }), 500
-
 # Test login endpoint for debugging
 @app.route("/test-login")
 def test_login():
@@ -888,7 +837,7 @@ def integrations():
     
     integrations_status = {
         'google_sheets': db_integration_manager.is_google_sheets_connected(user_id),
-        'airtable': False  # TODO: Implement airtable check when available
+        'airtable': bool(db_integration_manager.get_integration(user_id, 'airtable'))
     }
     
     # Basic stats
@@ -903,8 +852,30 @@ def integrations():
 
 @app.route("/integrations/airtable/configure", methods=["POST"])
 def configure_airtable():
-    # TODO: Implement when airtable integration is ready
-    return jsonify({'success': False, 'error': 'Airtable integration not yet implemented'})
+    current_user = auth_manager.get_current_user()
+    if not current_user:
+        return jsonify({'success': False, 'error': 'User not authenticated'}), 401
+    
+    try:
+        data = request.get_json()
+        api_key = data.get('api_key')
+        base_id = data.get('base_id') 
+        table_name = data.get('table_name')
+        
+        if not all([api_key, base_id, table_name]):
+            return jsonify({'success': False, 'error': 'Missing required fields'})
+        
+        from agent.integrations import IntegrationManager
+        integration_manager = IntegrationManager()
+        
+        success = integration_manager.configure_airtable(current_user['id'], api_key, base_id, table_name)
+        if success:
+            return jsonify({'success': True, 'message': 'Airtable configured successfully'})
+        else:
+            return jsonify({'success': False, 'error': 'Failed to configure Airtable'})
+            
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
 
 @app.route("/integrations/<integration>/disconnect", methods=["POST"])
 def disconnect_integration(integration):

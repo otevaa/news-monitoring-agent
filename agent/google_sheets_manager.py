@@ -2,7 +2,6 @@ from flask import session
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
-import json
 import os
 import re
 from typing import List, Dict, Optional, Tuple
@@ -194,11 +193,7 @@ class GoogleSheetsManager:
                 'campaign_name': campaign_name,
                 'url': f"https://docs.google.com/spreadsheets/d/{spreadsheet_id}",
                 'articles_count': 0
-            }
-            
-            # Note: We no longer store sheet info in JSON file, 
-            # it's stored in database as part of campaign data
-            
+            }           
             return sheet_info
             
         except HttpError as e:

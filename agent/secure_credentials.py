@@ -1,5 +1,4 @@
 import os
-import json
 import base64
 from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives import hashes
@@ -229,33 +228,3 @@ class GoogleCredentialsManager:
         
         required_fields = ['token', 'refresh_token', 'token_uri', 'client_id', 'client_secret']
         return all(field in credentials for field in required_fields)
-    
-    def _auto_migrate_from_json(self) -> bool:
-        """Automatically migrate from old user_credentials.json file"""
-        try:
-            if os.path.exists('user_credentials.json'):
-                print("🔄 Auto-migrating credentials from user_credentials.json...")
-                
-                with open('user_credentials.json', 'r') as f:
-                    user_creds = json.load(f)
-                
-                # Store in secure storage
-                success = self.store_user_credentials(user_creds)
-                
-                if success:
-                    print("✅ Credentials migrated successfully!")
-                    # Create backup and remove original
-                    if not os.path.exists('.backup'):
-                        os.makedirs('.backup')
-                    
-                    os.rename('user_credentials.json', '.backup/user_credentials.json.auto_migrated')
-                    print("📦 Original file backed up to .backup/user_credentials.json.auto_migrated")
-                    return True
-                else:
-                    print("❌ Failed to migrate credentials")
-                    return False
-            
-            return False
-        except Exception as e:
-            print(f"❌ Auto-migration error: {e}")
-            return False
