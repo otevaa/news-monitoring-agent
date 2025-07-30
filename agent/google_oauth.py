@@ -28,7 +28,6 @@ def get_auth_flow():
     try:
         # Get redirect URI from environment
         redirect_uri = os.getenv("GOOGLE_REDIRECT_URI")
-        print(f"🔍 Using Google Redirect URI: {redirect_uri}")  # Debug log
         
         # Get client configuration from environment variables
         client_config = {
@@ -48,9 +47,6 @@ def get_auth_flow():
         if not redirect_uri:
             raise ValueError("Missing GOOGLE_REDIRECT_URI in environment")
         
-        print(f"🔍 Client ID: {client_config['web']['client_id'][:20]}...")  # Debug log
-        print(f"🔍 Client Secret: {'*' * len(client_config['web']['client_secret'])}")  # Debug log
-        
         flow = Flow.from_client_config(
             client_config,
             scopes=SCOPES,
@@ -59,7 +55,6 @@ def get_auth_flow():
         
         return flow
     except Exception as e:
-        print(f"Error creating auth flow: {e}")
         raise ValueError("Google OAuth not properly configured. Please check your .env file.")
 
 def start_auth():
@@ -79,7 +74,6 @@ def start_auth():
         session["state"] = state
         return redirect(auth_url)
     except Exception as e:
-        print(f"Error starting auth: {e}")
         raise e
 
 def finish_auth():
@@ -89,13 +83,7 @@ def finish_auth():
         flow.fetch_token(authorization_response=request.url)
         credentials = flow.credentials
         
-        # Debug: Check what we got from OAuth
-        print(f"OAuth token: {credentials.token is not None}")
-        print(f"OAuth refresh_token: {credentials.refresh_token is not None}")
-        print(f"OAuth scopes: {credentials.scopes}")
-        
         if not credentials.refresh_token:
-            print("WARNING: No refresh token received. User may need to revoke access and re-authorize.")
             raise Exception("No refresh token received. Please revoke access in Google account settings and try again.")
         
         # Get Google user info for account linking
@@ -111,9 +99,7 @@ def finish_auth():
         try:
             oauth_service = build("oauth2", "v2", credentials=temp_creds)
             google_user_info = oauth_service.userinfo().get().execute()
-            print(f"Google user: {google_user_info.get('email')}")
-        except Exception as e:
-            print(f"Could not get Google user info: {e}")
+        except Exception:
             google_user_info = None
         
         # Prepare credentials data using environment variables
@@ -133,10 +119,6 @@ def finish_auth():
         session["credentials"] = credentials_data
         session["google_user_info"] = google_user_info
         
-        # Debug: Verify what we stored
-        print(f"Stored credentials keys: {list(credentials_data.keys())}")
-        print(f"All required fields present: {all(field in credentials_data for field in ['token', 'refresh_token', 'token_uri', 'client_id', 'client_secret'])}")
-        
         # Update integration manager with Google Sheets connection status
         from database.models import DatabaseManager
         from database.managers import DatabaseIntegrationManager
@@ -146,7 +128,6 @@ def finish_auth():
         
         return True
     except Exception as e:
-        print(f"Error in finish_auth: {e}")
         raise e
 
 def get_sheets_service():
@@ -191,6 +172,5 @@ def get_user_info():
         
         return user_info
         
-    except Exception as e:
-        print(f"Error getting user info: {e}")
+    except Exception:
         return None

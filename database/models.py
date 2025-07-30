@@ -220,8 +220,6 @@ class UserManager:
             password_hash = self.security.hash_password(password)
             verification_token = secrets.token_urlsafe(32)
             
-            print(f"Creating user: {email} with ID: {user_id}")  # Debug log
-            
             cursor.execute('''
                 INSERT INTO users (id, email, password_hash, name, verification_token)
                 VALUES (?, ?, ?, ?, ?)
@@ -236,12 +234,10 @@ class UserManager:
             
             # CRITICAL: Ensure transaction is committed
             conn.commit()
-            print(f"User created successfully: {user_id}")  # Debug log
             
             # Verify user was actually inserted
             cursor.execute('SELECT COUNT(*) FROM users WHERE id = ?', (user_id,))
             count = cursor.fetchone()[0]
-            print(f"User count verification: {count}")  # Debug log
             
             conn.close()
             
@@ -250,9 +246,6 @@ class UserManager:
             
             return user_id
         except Exception as e:
-            print(f"Error creating user: {e}")
-            import traceback
-            traceback.print_exc()
             return None
     
     def authenticate_user(self, email: str, password: str) -> Optional[Dict]:
@@ -261,32 +254,24 @@ class UserManager:
             conn = self.db.get_connection()
             cursor = conn.cursor()
             
-            print(f"Attempting to authenticate user: {email}")  # Debug log
-            
             cursor.execute('''
                 SELECT id, email, password_hash, name, is_active, email_verified
                 FROM users WHERE email = ?
             ''', (email,))
             
             user = cursor.fetchone()
-            print(f"User found: {dict(user) if user else None}")  # Debug log
             
             if not user:
-                print("No user found with this email")
                 conn.close()
                 return None
                 
             if not user['is_active']:
-                print("User account is not active")
                 conn.close()
                 return None
             
-            print(f"Checking password hash...")  # Debug log
             password_valid = self.security.verify_password(password, user['password_hash'])
-            print(f"Password validation result: {password_valid}")  # Debug log
             
             if password_valid:
-                print("Password is valid, updating last login...")  # Debug log
                 # Update last login
                 cursor.execute('''
                     UPDATE users SET last_login = CURRENT_TIMESTAMP 
@@ -299,11 +284,8 @@ class UserManager:
                 
                 # Log activity
                 self.log_activity(user['id'], 'user_login', 'user', user['id'])
-                print(f"Authentication successful for user: {user_dict['id']}")  # Debug log
                 
                 return user_dict
-            else:
-                print("Password validation failed")  # Debug log
             
             conn.close()
             return None
@@ -362,26 +344,30 @@ class UserManager:
             values = []
             
             allowed_fields = ['name', 'email']
+            # Build safe parameterized query to prevent SQL injection
+            safe_set_clauses = []
+            safe_values = []
+            
             for field, value in updates.items():
                 if field in allowed_fields:
-                    set_clauses.append(f"{field} = ?")
-                    values.append(value)
+                    safe_set_clauses.append(f"{field} = ?")
+                    safe_values.append(value)
             
-            if not set_clauses:
+            if not safe_set_clauses:
                 return False
             
-            set_clauses.append("updated_at = CURRENT_TIMESTAMP")
-            values.append(user_id)
+            safe_set_clauses.append("updated_at = CURRENT_TIMESTAMP")
+            safe_values.append(user_id)
             
-            query = f"UPDATE users SET {', '.join(set_clauses)} WHERE id = ?"
-            cursor.execute(query, values)
+            query = f"UPDATE users SET {', '.join(safe_set_clauses)} WHERE id = ?"
+            cursor.execute(query, safe_values)
             
             success = cursor.rowcount > 0
             conn.commit()
             conn.close()
             
             if success:
-                self.log_activity(user_id, 'user_updated', 'user', user_id, {'fields': list(updates.keys())})
+                self.log_activity(user_id, 'user_updated', 'user', user_id, {'fields': [f for f in updates.keys() if f in allowed_fields]})
             
             return success
         except Exception as e:
@@ -526,31 +512,31 @@ class UserManager:
             if not profile:
                 return False
             
-            # Build update query
+            # Build safe parameterized query to prevent SQL injection
             allowed_fields = ['ai_model', 'ai_filtering_enabled', 'keyword_expansion_enabled', 
                             'priority_alerts_enabled', 'language', 'timezone']
-            set_clauses = []
-            values = []
+            safe_set_clauses = []
+            safe_values = []
             
             for field, value in updates.items():
                 if field in allowed_fields:
-                    set_clauses.append(f"{field} = ?")
-                    values.append(value)
+                    safe_set_clauses.append(f"{field} = ?")
+                    safe_values.append(value)
             
-            if not set_clauses:
+            if not safe_set_clauses:
                 return False
             
-            set_clauses.append("updated_at = CURRENT_TIMESTAMP")
-            values.append(user_id)
+            safe_set_clauses.append("updated_at = CURRENT_TIMESTAMP")
+            safe_values.append(user_id)
             
-            query = f"UPDATE user_profiles SET {', '.join(set_clauses)} WHERE user_id = ?"
-            cursor.execute(query, values)
+            query = f"UPDATE user_profiles SET {', '.join(safe_set_clauses)} WHERE user_id = ?"
+            cursor.execute(query, safe_values)
             
             conn.commit()
             conn.close()
             
             if cursor.rowcount > 0:
-                self.log_activity(user_id, 'profile_updated', 'user_profile', user_id, {'fields': list(updates.keys())})
+                self.log_activity(user_id, 'profile_updated', 'user_profile', user_id, {'fields': [f for f in updates.keys() if f in allowed_fields]})
                 return True
             return False
         except Exception as e:

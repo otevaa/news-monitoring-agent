@@ -43,11 +43,9 @@ class IntegrationManager:
                     user_id, 'airtable', config, True
                 )
             else:
-                print(f"Airtable API error: {response.status_code}")
                 return False
                 
         except Exception as e:
-            print(f"Error configuring Airtable: {e}")
             return False
     
     def is_airtable_configured(self, user_id: str) -> bool:
@@ -175,7 +173,6 @@ class IntegrationManager:
                 response = requests.post(url, headers=headers, json=payload)
                 
                 if response.status_code != 200:
-                    print(f"Airtable API error: {response.status_code} - {response.text}")
                     return False
             
             # Update stats
@@ -189,7 +186,7 @@ class IntegrationManager:
             return True
             
         except Exception as e:
-            print(f"Error sending to Airtable: {e}")
+            return False
             return False
     
     def send_to_google_sheets(self, user_id: str, articles: List[Dict], campaign_name: Optional[str] = None) -> bool:
@@ -215,7 +212,6 @@ class IntegrationManager:
             
             return True
         except Exception as e:
-            print(f"Error sending to Google Sheets: {e}")
             return False
     
     def send_articles(self, user_id: str, articles: List[Dict], integrations: List[str], campaign_name: Optional[str] = None) -> Dict[str, bool]:

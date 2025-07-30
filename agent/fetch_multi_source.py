@@ -9,10 +9,11 @@ from dotenv import load_dotenv
 from typing import List, Dict, Optional, Any
 from .ai_keyword_expander import create_keyword_expander
 from database.managers import DatabaseUserProfileManager
-from database.models import DatabaseManager, DatabaseManager
+from database.models import DatabaseManager
 
 # Load environment variables
 load_dotenv()
+
 def parse_entry_date(entry):
     """Parse entry date from RSS feed"""
     try:
@@ -45,73 +46,52 @@ def fetch_articles_rss(query, max_items=25):
         # Parse date safely
         pub_date = parse_entry_date(entry)
         
+        # Get summary
+        summary_text = str(getattr(entry, 'summary', entry.title))
+        resume_text = summary_text[:300] + "..." if len(summary_text) > 300 else summary_text
+        
         results.append({
             "date": pub_date.isoformat(),
             "source": "Google News RSS",
-            "titre": str(entry.title) if hasattr(entry, 'title') else "",
-            "url": real_url
+            "titre": entry.title,
+            "url": real_url,
+            "description": getattr(entry, 'summary', entry.title),
+            "resume": resume_text,
+            "auteur": getattr(entry, 'author', 'Unknown')
         })
     
-    # Sort by date (most recent first)
-    results.sort(key=lambda x: x['date'], reverse=True)
-    
-    # Remove duplicates based on URL
-    seen_urls = set()
-    unique_results = []
-    
-    for result in results:
-        if result['url'] not in seen_urls:
-            seen_urls.add(result['url'])
-            unique_results.append(result)
-    
-    return unique_results[:max_items]
+    return results
 
 def get_real_url(google_news_url):
-    """Extract the raw URL from Google News redirect URL or HTML tags"""
+    """Extract the real URL from Google News redirect"""
     try:
-        # If it's already a clean URL, return it
-        if not google_news_url.startswith('https://news.google.com'):
-            # Extract URL from HTML tag if present
-            if '<a href="' in google_news_url:
-                url_match = re.search(r'href="([^"]*)"', google_news_url)
-                if url_match:
-                    return url_match.group(1).strip()
-            # Return as-is if no HTML tag found
-            return google_news_url.strip()
-        
-        # Handle Google News URLs
+        # Parse the URL
         parsed = urlparse(google_news_url)
         
-        # Check if it's a Google News URL with a 'url' parameter
+        # For Google News URLs, the real URL is in the 'url' parameter
         if 'news.google.com' in parsed.netloc:
             query_params = parse_qs(parsed.query)
             if 'url' in query_params:
                 return unquote(query_params['url'][0])
         
-        # For complex redirects, just return the original URL
-        # The user requested not to waste time on complex decoding
+        # If it's not a Google News redirect, return the original URL
         return google_news_url
         
-    except Exception as e:
-        print(f"Error extracting URL: {e}")
-        # Return original URL if extraction fails
+    except Exception:
         return google_news_url
 
 def fetch_twitter_articles(keywords, max_items=10):
-    """
-    Fetch articles from X/Twitter API
-    """
+    """Fetch articles from Twitter"""
     articles = []
     
     try:
-        # Twitter API credentials
+        # Get Twitter API credentials
         consumer_key = os.getenv('TWITTER_CONSUMER_KEY')
         consumer_secret = os.getenv('TWITTER_CONSUMER_SECRET')
         access_token = os.getenv('TWITTER_ACCESS_TOKEN')
         access_token_secret = os.getenv('TWITTER_ACCESS_TOKEN_SECRET')
         
         if not all([consumer_key, consumer_secret, access_token, access_token_secret]):
-            print("Twitter API credentials not found. Skipping Twitter articles.")
             return articles
         
         # Authenticate with Twitter API
@@ -136,12 +116,10 @@ def fetch_twitter_articles(keywords, max_items=10):
                 }
                 articles.append(article)
                 
-            except Exception as e:
-                print(f"Error processing tweet: {e}")
+            except Exception:
                 continue
                 
-    except Exception as e:
-        print(f"Error fetching Twitter articles: {e}")
+    except Exception:
         return []
     
     return articles
@@ -157,8 +135,6 @@ def fetch_google_news_articles(keywords, max_items=25):
         
         # Parse the RSS feed
         feed = feedparser.parse(google_news_url)
-        
-        print(f"Google News RSS returned {len(feed.entries)} entries")
         
         for entry in feed.entries[:max_items]:
             try:
@@ -188,14 +164,12 @@ def fetch_google_news_articles(keywords, max_items=25):
                 
                 articles.append(article)
                 
-            except Exception as e:
-                print(f"Error processing Google News entry: {e}")
+            except Exception:
                 continue
         
         return articles
         
-    except Exception as e:
-        print(f"Error fetching Google News articles: {e}")
+    except Exception:
         return []
 
 # Keep the original function for backward compatibility
@@ -227,8 +201,6 @@ def fetch_articles_multi_source(
     Returns:
         List of article dictionaries
     """
-    print(f"Fetching articles for keywords: {keywords}")
-    
     # AI Enhancement: Expand keywords first (before fetching articles)
     expanded_keywords = []
     if show_keyword_suggestions:
@@ -241,19 +213,15 @@ def fetch_articles_multi_source(
                 ai_model = user_profile.get('ai_model', 'deepseek/deepseek-r1')
                 ai_enhancer = create_keyword_expander(ai_model)
             
-            print("🤖 Expanding keywords with AI...")
             french_words, english_words = ai_enhancer.expand_keywords([keywords])
             expanded_keywords = french_words + english_words
             
             if expanded_keywords:
-                print(f"✨ AI suggested keywords: {', '.join(expanded_keywords)}")
                 # Create comprehensive search query with original + AI keywords
                 all_search_keywords = f"{keywords} OR {' OR '.join(expanded_keywords[:5])}"  # Limit to avoid too long queries
-                print(f"🔍 Enhanced search query: {all_search_keywords}")
             else:
                 all_search_keywords = keywords
-        except Exception as e:
-            print(f"❌ Keyword expansion failed: {e}")
+        except Exception:
             all_search_keywords = keywords
     else:
         all_search_keywords = keywords
@@ -264,18 +232,11 @@ def fetch_articles_multi_source(
     # Fetch from social media sources with enhanced keywords  
     social_articles = fetch_twitter_articles(all_search_keywords, max_items=10)
     
-    
     # Combine with RSS articles first, then social media
     all_articles = rss_articles + social_articles
-    print(f"📊 Total articles collected: {len(all_articles)}")
-    print(f"  - RSS articles: {len(rss_articles)}")
-    print(f"  - Social media articles: {len(social_articles)}")
-    if expanded_keywords:
-        print(f"  - Using AI-expanded keywords: {len(expanded_keywords)} additional terms")
     
     # Smart date filtering for incremental updates
     if since_datetime:
-        print(f"🔍 Filtering articles newer than: {since_datetime.isoformat()}")
         filtered_articles = []
         for article in all_articles:
             article_date_str = article.get('date', '')
@@ -292,7 +253,6 @@ def fetch_articles_multi_source(
                 filtered_articles.append(article)
         
         all_articles = filtered_articles
-        print(f"📊 After date filtering: {len(all_articles)} articles (from {len(rss_articles + social_articles)} total)")
     
     # Sort articles by date: NEWEST FIRST for processing
     def get_article_date(article):
@@ -308,7 +268,6 @@ def fetch_articles_multi_source(
     
     # Apply limit after sorting (take the newest articles)
     if len(all_articles) > max_items:
-        print(f"📋 Limiting to {max_items} newest articles (from {len(all_articles)} available)")
         all_articles = all_articles[:max_items]
     
     # Return articles (keyword expansion already done at the beginning)

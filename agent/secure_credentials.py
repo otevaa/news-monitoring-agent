@@ -35,19 +35,6 @@ class SecureCredentialManager:
         os.environ['NEWSMONITOR_MASTER_KEY'] = base64.b64encode(key).decode()
         return key
     
-    def _create_master_key(self) -> bytes:
-        """Create a new master key for encryption"""
-        key = Fernet.generate_key()
-        
-        # Save the key to file with secure permissions
-        with open('.master_key', 'wb') as key_file:
-            key_file.write(key)
-        
-        # Set secure permissions (owner read/write only)
-        os.chmod('.master_key', 0o600)
-        
-        return key
-    
     def _derive_key_from_password(self, password: str, salt: bytes) -> bytes:
         """Derive encryption key from password"""
         kdf = PBKDF2HMAC(
@@ -75,7 +62,6 @@ class SecureCredentialManager:
             # Save credentials
             return self._save_credentials(credentials)
         except Exception as e:
-            print(f"Error storing credential {key}: {e}")
             return False
     
     def get_credential(self, key: str) -> Optional[str]:
@@ -93,7 +79,6 @@ class SecureCredentialManager:
             else:
                 return cred["value"]
         except Exception as e:
-            print(f"Error retrieving credential {key}: {e}")
             return None
     
     def remove_credential(self, key: str) -> bool:
@@ -105,7 +90,6 @@ class SecureCredentialManager:
                 return self._save_credentials(credentials)
             return True
         except Exception as e:
-            print(f"Error removing credential {key}: {e}")
             return False
     
     def list_credentials(self) -> list:
@@ -114,7 +98,6 @@ class SecureCredentialManager:
             credentials = self._load_credentials()
             return list(credentials.keys())
         except Exception as e:
-            print(f"Error listing credentials: {e}")
             return []
     
     def _load_credentials(self) -> Dict:
@@ -137,7 +120,6 @@ class SecureCredentialManager:
             self.memory_cache.update(credentials)
             return True
         except Exception as e:
-            print(f"Error saving credentials to memory: {e}")
             return False
 
 class GoogleCredentialsManager:
@@ -182,7 +164,6 @@ class GoogleCredentialsManager:
                 self.secure_manager.store_credential(f'google_user_{key}', str(value), encrypt=True)
             return True
         except Exception as e:
-            print(f"Error storing user credentials: {e}")
             return False
     
     def get_user_credentials(self) -> Optional[Dict]:
@@ -206,7 +187,6 @@ class GoogleCredentialsManager:
             
             return credentials if credentials else None
         except Exception as e:
-            print(f"Error retrieving user credentials: {e}")
             return None
     
     def clear_user_credentials(self) -> bool:
@@ -217,7 +197,6 @@ class GoogleCredentialsManager:
                 self.secure_manager.remove_credential(f'google_user_{field}')
             return True
         except Exception as e:
-            print(f"Error clearing user credentials: {e}")
             return False
     
     def has_valid_credentials(self) -> bool:

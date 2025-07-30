@@ -4,7 +4,7 @@ AI-powered keyword expansion using OpenRouter API or local Ollama
 import os
 import json
 import requests
-from typing import List, Tuple, Optional
+from typing import List, Tuple
 from openai import OpenAI
 from dotenv import load_dotenv
 
@@ -30,7 +30,6 @@ class OllamaKeywordExpander:
             Tuple of (french_keywords, english_keywords)
         """
         try:
-            # Prepare the prompt
             keywords_str = ", ".join(keywords)
             
             prompt = f"""
@@ -54,7 +53,6 @@ class OllamaKeywordExpander:
             }}
             """
             
-            # Call Ollama API
             response = requests.post(
                 f"{self.base_url}/api/generate",
                 json={
@@ -70,7 +68,6 @@ class OllamaKeywordExpander:
             )
             
             if response.status_code != 200:
-                print(f"❌ Ollama API error: {response.status_code}")
                 return [], []
             
             response_data = response.json()
@@ -81,7 +78,6 @@ class OllamaKeywordExpander:
             json_end = ai_response.rfind("}") + 1
             
             if json_start == -1 or json_end == 0:
-                print(f"❌ No JSON found in Ollama response")
                 return [], []
             
             json_str = ai_response[json_start:json_end]
@@ -94,18 +90,9 @@ class OllamaKeywordExpander:
             french_keywords = [kw.strip() for kw in french_keywords if kw.strip()]
             english_keywords = [kw.strip() for kw in english_keywords if kw.strip()]
             
-            print(f"✅ Ollama keyword expansion successful: {len(french_keywords)} French + {len(english_keywords)} English keywords")
-            
             return french_keywords, english_keywords
             
-        except requests.exceptions.RequestException as e:
-            print(f"❌ Ollama connection error: {e}")
-            return [], []
-        except json.JSONDecodeError as e:
-            print(f"❌ Error parsing Ollama response: {e}")
-            return [], []
-        except Exception as e:
-            print(f"❌ Error expanding keywords with Ollama: {e}")
+        except (requests.exceptions.RequestException, json.JSONDecodeError, Exception):
             return [], []
 
 class KeywordExpander:
@@ -130,7 +117,6 @@ class KeywordExpander:
             Tuple of (french_keywords, english_keywords)
         """
         try:
-            # Prepare the prompt
             keywords_str = ", ".join(keywords)
             
             prompt = f"""
@@ -165,7 +151,11 @@ class KeywordExpander:
             )
             
             # Parse the response
-            response_content = response.choices[0].message.content.strip()
+            response_content = response.choices[0].message.content
+            if not response_content:
+                return [], []
+            
+            response_content = response_content.strip()
             
             # Clean up the response (remove any markdown formatting)
             if response_content.startswith('```json'):
@@ -183,15 +173,9 @@ class KeywordExpander:
             french_keywords = [kw.strip() for kw in french_keywords if kw.strip()]
             english_keywords = [kw.strip() for kw in english_keywords if kw.strip()]
             
-            print(f"✅ AI keyword expansion successful: {len(french_keywords)} French + {len(english_keywords)} English keywords")
-            
             return french_keywords, english_keywords
             
-        except json.JSONDecodeError as e:
-            print(f"❌ Error parsing AI response: {e}")
-            return [], []
-        except Exception as e:
-            print(f"❌ Error expanding keywords with AI: {e}")
+        except (json.JSONDecodeError, Exception):
             return [], []
 
 def create_keyword_expander(model: str = "deepseek/deepseek-r1"):
@@ -210,11 +194,9 @@ def create_keyword_expander(model: str = "deepseek/deepseek-r1"):
     if model.startswith('ollama-'):
         # Extract the actual model name (remove 'ollama-' prefix)
         ollama_model = model[7:]  # Remove 'ollama-' prefix
-        print(f"🤖 Using Ollama with model: {ollama_model}")
         return OllamaKeywordExpander(ollama_model)
     else:
         # Use OpenRouter
-        print(f"🌐 Using OpenRouter with model: {model}")
         return KeywordExpander(model)
 
 # Convenience function for backward compatibility

@@ -17,8 +17,7 @@ class GoogleSheetsManager:
         try:
             self.db_manager = DatabaseManager()
             self.db_integration_manager = DatabaseIntegrationManager(self.db_manager)
-        except Exception as e:
-            print(f"Error initializing database managers in GoogleSheetsManager: {e}")
+        except Exception:
             self.db_manager = None
             self.db_integration_manager = None
     
@@ -39,8 +38,8 @@ class GoogleSheetsManager:
                 for integration in integrations:
                     if integration['integration_type'] == 'google_sheets' and integration['is_active']:
                         return integration['config']
-            except Exception as e:
-                print(f"Error getting credentials from database: {e}")
+            except Exception:
+                pass
         
         # Fall back to secure storage
         return self.credentials_manager.get_user_credentials()
@@ -49,7 +48,6 @@ class GoogleSheetsManager:
         """Get authenticated Google Sheets service"""
         creds_data = self._get_credentials(user_id)
         if not creds_data:
-            print("No credentials available")
             return None
         
         try:
@@ -58,18 +56,15 @@ class GoogleSheetsManager:
             missing_fields = [field for field in required_fields if field not in creds_data]
             
             if missing_fields:
-                print(f"Missing required credential fields: {missing_fields}")
                 return None
                 
             creds = Credentials(**creds_data)
             return build("sheets", "v4", credentials=creds)
-        except Exception as e:
-            print(f"Error creating sheets service: {e}")
+        except Exception:
             return None
     
     def list_user_spreadsheets(self) -> List[Dict]:
         """List all spreadsheets accessible to the user - DISABLED (No Drive API Access)"""
-        print("⚠️ Spreadsheet listing disabled - requires Google Drive API access")
         return []
     
     def create_campaign_spreadsheet(self, campaign_name: str) -> Optional[Dict]:
@@ -196,8 +191,7 @@ class GoogleSheetsManager:
             }           
             return sheet_info
             
-        except HttpError as e:
-            print(f"Error creating spreadsheet: {e}")
+        except HttpError:
             return None
     
     def save_articles_to_spreadsheet(self, spreadsheet_id: str, articles: List[Dict], 
@@ -229,7 +223,6 @@ class GoogleSheetsManager:
                     filtered_articles.append(article)
             
             if not filtered_articles:
-                print(f"No recent articles (last 2 days) to save for campaign '{campaign_name}'")
                 return True
             
             # Check for existing articles to avoid duplicates
@@ -259,9 +252,8 @@ class GoogleSheetsManager:
                                 identifier = f"{title.strip()}|{url.strip()}"
                                 existing_articles.add(identifier)
                                 
-                print(f"Found {len(existing_articles)} existing articles in spreadsheet")
-            except Exception as e:
-                print(f"Warning: Could not check for existing articles: {e}")
+            except Exception:
+                pass
             
             # Filter out duplicate articles
             unique_articles = []
@@ -280,18 +272,12 @@ class GoogleSheetsManager:
                 if identifier not in existing_articles and title and url:
                     unique_articles.append(article)
                     existing_articles.add(identifier)  # Add to set to avoid duplicates within this batch
-                else:
-                    print(f"Skipping duplicate article: {title[:50]}...")
             
             if not unique_articles:
-                print(f"No new unique articles to save for campaign '{campaign_name}'")
                 return True
             
             # Sort articles by date: OLDEST FIRST (chronological order for better timeline)
             unique_articles.sort(key=lambda x: x.get('date', ''), reverse=False)
-            
-            print(f"Saving {len(unique_articles)} new unique articles (filtered from {len(filtered_articles)} total)")
-            print(f"Articles sorted chronologically (oldest first) for better timeline view")
             
             # Prepare values for unique articles only
             values = []
@@ -393,11 +379,9 @@ class GoogleSheetsManager:
                 ).execute()
             
             # Note: Article count is now tracked in database campaigns table
-            print(f"Successfully saved {len(filtered_articles)} recent articles to spreadsheet for '{campaign_name}'")
             return True
             
-        except HttpError as e:
-            print(f"Error saving to spreadsheet: {e}")
+        except HttpError:
             return False
     
     def get_campaign_spreadsheets(self, campaign_name: Optional[str] = None) -> List[Dict]:
@@ -433,8 +417,7 @@ class GoogleSheetsManager:
         except HttpError as e:
             print(f"Error getting spreadsheet article count: {e}")
             return 0
-        except Exception as e:
-            print(f"Error getting spreadsheet article count: {e}")
+        except Exception:
             return 0
     
     def get_spreadsheet_articles_today(self, spreadsheet_id: str) -> int:
@@ -470,11 +453,7 @@ class GoogleSheetsManager:
                         continue
             
             return articles_today
-        except HttpError as e:
-            print(f"Error getting today's articles count: {e}")
-            return 0
-        except Exception as e:
-            print(f"Error getting today's articles count: {e}")
+        except (HttpError, Exception):
             return 0
 
     def get_newest_article_datetime(self, spreadsheet_id: str) -> Optional[datetime]:

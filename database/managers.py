@@ -576,10 +576,18 @@ class DatabaseUserProfileManager:
             if not set_clauses:
                 return False
             
+            # Use parameterized query to prevent SQL injection
             set_clauses.append("updated_at = CURRENT_TIMESTAMP")
             values.append(user_id)
             
-            query = f"UPDATE user_profiles SET {', '.join(set_clauses)} WHERE user_id = ?"
+            # Build safe query with validated field names only
+            safe_set_clauses = []
+            for field, value in updates.items():
+                if field in allowed_fields:
+                    safe_set_clauses.append(f"{field} = ?")
+            safe_set_clauses.append("updated_at = CURRENT_TIMESTAMP")
+            
+            query = f"UPDATE user_profiles SET {', '.join(safe_set_clauses)} WHERE user_id = ?"
             cursor.execute(query, values)
             
             success = cursor.rowcount > 0
