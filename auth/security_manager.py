@@ -73,11 +73,12 @@ class SecurityManager:
     def verify_password(self, password: str, hashed: str) -> bool:
         """Verify password against hash"""
         try:
-            if HAS_BCRYPT and not '$' in hashed:
+            if HAS_BCRYPT and hashed.startswith('$2b$'):
+                # bcrypt hash (starts with $2b$)
                 import bcrypt
                 return bcrypt.checkpw(password.encode('utf-8'), hashed.encode('utf-8'))
             else:
-                # PBKDF2 verification
+                # PBKDF2 verification (contains $ but not bcrypt format)
                 salt, pwd_hash = hashed.split('$')
                 computed_hash = hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), salt.encode('utf-8'), 100000)
                 return pwd_hash == computed_hash.hex()
