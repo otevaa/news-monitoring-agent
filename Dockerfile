@@ -14,16 +14,16 @@ RUN useradd -m -u 1000 appuser && \
         curl \
         && rm -rf /var/lib/apt/lists/*
 
-# Install uv
-RUN curl -LsSf https://astral.sh/uv/install.sh | sh
-ENV PATH="/root/.cargo/bin:$PATH"
-
 # Set working directory
 WORKDIR /app
 
 # Copy requirements first for better caching
 COPY requirements.txt .
-RUN uv pip install --system -r requirements.txt
+
+# Install uv with pip, then use uv for faster package installation
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir uv && \
+    uv pip install --system -r requirements.txt
 
 # Copy application code
 COPY . .
