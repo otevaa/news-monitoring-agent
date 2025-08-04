@@ -18,22 +18,26 @@ class DatabaseManager:
     def __init__(self, db_path: Optional[str] = None):
         """Initialize database manager with flexible path configuration"""
         if db_path is None:
-            # Try environment variable first
-            db_path = os.getenv('DATABASE_PATH')
-            
-            if db_path is None:
+            # Use environment variable or default path
+            if os.getenv('DATABASE_URL'):
+                db_path = os.getenv('DATABASE_URL')
+            else:
                 # Check if we're in a containerized environment (Render deployment)
-                if os.path.exists('/app/db'):
+                if os.path.exists('/app') and os.access('/app', os.W_OK):
                     db_path = "/app/db/newsmonitor.db"  # Persistent disk path
                 else:
-                    db_path = "db/newsmonitor.db"  # Local development path
+                    db_path = "newsmonitor.db"  # Local development path in current directory
         
+        # Ensure db_path is not None
+        if db_path is None:
+            db_path = "newsmonitor.db"
+            
         self.db_path = db_path
         
-        # Ensure directory exists
-        os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
-        # Create directory if it doesn't exist
-        os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
+        # Ensure directory exists only if it's not the current directory
+        dir_path = os.path.dirname(self.db_path)
+        if dir_path:
+            os.makedirs(dir_path, exist_ok=True)
         self.init_database()
     
     def get_connection(self):
