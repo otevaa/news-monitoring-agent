@@ -15,10 +15,12 @@ services:
         value: false
       - key: PYTHON_VERSION
         value: 3.12.0
+      - key: DATABASE_PATH
+        value: /app/data/newsmonitor.db
     scaling:
       minInstances: 1
       maxInstances: 10
     disk:
       name: newsmonitor-disk
       size: 1GB
-      mount: /app/logs
+      mount: /app/data

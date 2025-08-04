@@ -18,15 +18,22 @@ class DatabaseManager:
     def __init__(self, db_path: Optional[str] = None):
         """Initialize database manager with flexible path configuration"""
         if db_path is None:
-            # Use environment variable or default path
-            if os.getenv('DATABASE_URL'):
+            # Use environment variable for database path (for Render persistent disk)
+            if os.getenv('DATABASE_PATH'):
+                db_path = os.getenv('DATABASE_PATH')
+            elif os.getenv('DATABASE_URL'):
                 db_path = os.getenv('DATABASE_URL')
             else:
                 # Check if we're in a containerized environment (Render deployment)
-                if os.path.exists('/app') and os.access('/app', os.W_OK):
-                    db_path = "/app/db/newsmonitor.db"  # Persistent disk path
-                else:
-                    db_path = "newsmonitor.db"  # Local development path in current directory
+                try:
+                    if os.path.exists('/app/data'):
+                        db_path = "/app/data/newsmonitor.db"  # Persistent disk path
+                    elif os.path.exists('/app') and os.access('/app', os.W_OK):
+                        db_path = "/app/newsmonitor.db"  # App directory
+                    else:
+                        db_path = "newsmonitor.db"  # Local development path
+                except (OSError, PermissionError):
+                    db_path = "newsmonitor.db"  # Fallback to current directory
         
         # Ensure db_path is not None
         if db_path is None:
@@ -37,7 +44,12 @@ class DatabaseManager:
         # Ensure directory exists only if it's not the current directory
         dir_path = os.path.dirname(self.db_path)
         if dir_path:
-            os.makedirs(dir_path, exist_ok=True)
+            try:
+                os.makedirs(dir_path, exist_ok=True)
+            except (OSError, PermissionError) as e:
+                print(f"Warning: Could not create database directory {dir_path}: {e}")
+                # Fallback to current directory
+                self.db_path = "newsmonitor.db"
         self.init_database()
     
     def get_connection(self):
