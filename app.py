@@ -458,7 +458,7 @@ def save_campaign(campaign_id=None):
             flash("Erreur: Les mots-clés ne peuvent pas être vides ou dépasser 500 caractères", 'error')
             return redirect(url_for("create_campaign"))
         
-        if not data['frequency'] or data['frequency'] not in ['60', '180', '360', '720', '1440']:
+        if not data['frequency'] or data['frequency'] not in ['15min', 'hourly', 'daily', 'weekly']:
             flash("Erreur: Veuillez sélectionner une fréquence valide", 'error')
             return redirect(url_for("create_campaign"))
         
